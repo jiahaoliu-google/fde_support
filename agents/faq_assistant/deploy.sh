@@ -6,15 +6,16 @@ REGION="us-central1"
 PATH="$PATH:/Users/jiahaoliu/.local/bin"
 
 echo "============================================================"
-echo " Deploying Sentiment Router Agent (gemini-2.5-flash) "
+echo " Deploying FAQ Assistant Agent with Agent Identity "
 echo "============================================================"
 
-cd "$(dirname "$0")/../agents/sentiment_router"
+cd "$(dirname "$0")"
 
 agents-cli deploy \
     -d agent_runtime \
     --project="${PROJECT_ID}" \
     --region="${REGION}" \
+    --agent-identity \
     --no-confirm-project
 
-echo "=== Sentiment Router Agent Deployment Command Triggered Successfully! ==="
+echo "=== FAQ Assistant Agent Deployment Command Triggered Successfully! ==="
