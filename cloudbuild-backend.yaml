@@ -1,0 +1,8 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'us-central1-docker.pkg.dev/$PROJECT_ID/fde-support-repo/backend:latest', '-f', 'backend/Dockerfile', '.']
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'us-central1-docker.pkg.dev/$PROJECT_ID/fde-support-repo/backend:latest']
+
+images:
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/fde-support-repo/backend:latest'

@@ -1,0 +1,26 @@
+# Python Virtual Environment
+.venv/
+venv/
+env/
+
+# Python Bytecode & Cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Terraform Local Cache & Binaries
+.terraform/
+*.tfstate
+*.tfstate.backup
+
+# Local Databases & Binaries
+*.db
+local_dev.db
+cloud-sql-proxy
+
+# OS Junk
+.DS_Store
+Thumbs.db
+
+# Archive & Temp
+archive/

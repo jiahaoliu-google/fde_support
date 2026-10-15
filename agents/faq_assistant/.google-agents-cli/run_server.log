@@ -1,0 +1,85 @@
+=== Starting server at 2026-10-05T05:50:20.033732+00:00 ===
+Command: uv run adk api_server --host 127.0.0.1 --port 18080 --reload_agents --no-reload .
+CWD: /Users/jiahaoliu/ws/fde_support/agents/faq_assistant
+=== Started server process 92634 ===
+error: Failed to spawn: `adk`
+  Caused by: No such file or directory (os error 2)
+=== Starting server at 2026-10-05T05:54:29.300669+00:00 ===
+Command: uv run adk api_server --host 127.0.0.1 --port 18080 --reload_agents --no-reload .
+CWD: /Users/jiahaoliu/ws/fde_support/agents/faq_assistant
+=== Started server process 93062 ===
+error: Failed to spawn: `adk`
+  Caused by: No such file or directory (os error 2)
+=== Starting server at 2026-10-05T05:55:55.602873+00:00 ===
+Command: uv run adk api_server --host 127.0.0.1 --port 18080 --reload_agents --no-reload .
+CWD: /Users/jiahaoliu/ws/fde_support/agents/faq_assistant
+=== Started server process 93300 ===
+2026-10-05 01:55:56,259 - INFO - service_factory.py:266 - Using in-memory memory service
+2026-10-05 01:55:56,259 - INFO - local_storage.py:89 - Using per-agent session storage rooted at /Users/jiahaoliu/ws/fde_support/agents
+2026-10-05 01:55:56,259 - INFO - local_storage.py:121 - Using per-agent artifact storage rooted at /Users/jiahaoliu/ws/fde_support/agents
+/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/site-packages/google/adk/cli/fast_api.py:278: UserWarning: [EXPERIMENTAL] InMemoryCredentialService: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+  credential_service = InMemoryCredentialService()
+/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/site-packages/google/adk/auth/credential_service/in_memory_credential_service.py:33: UserWarning: [EXPERIMENTAL] BaseCredentialService: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+  super().__init__()
+INFO:     Started server process [93301]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:18080 (Press CTRL+C to quit)
+INFO:     127.0.0.1:56467 - "GET / HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:56468 - "POST /apps/users/cli-user/sessions HTTP/1.1" 404 Not Found
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [93301]
+=== Starting server at 2026-10-05T05:56:33.158382+00:00 ===
+Command: uv run adk api_server --host 127.0.0.1 --port 18080 --reload_agents --no-reload .
+CWD: /Users/jiahaoliu/ws/fde_support/agents/faq_assistant
+=== Started server process 93375 ===
+2026-10-05 01:56:33,806 - INFO - service_factory.py:266 - Using in-memory memory service
+2026-10-05 01:56:33,806 - INFO - local_storage.py:89 - Using per-agent session storage rooted at /Users/jiahaoliu/ws/fde_support/agents
+2026-10-05 01:56:33,807 - INFO - local_storage.py:121 - Using per-agent artifact storage rooted at /Users/jiahaoliu/ws/fde_support/agents
+/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/site-packages/google/adk/cli/fast_api.py:278: UserWarning: [EXPERIMENTAL] InMemoryCredentialService: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+  credential_service = InMemoryCredentialService()
+/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/site-packages/google/adk/auth/credential_service/in_memory_credential_service.py:33: UserWarning: [EXPERIMENTAL] BaseCredentialService: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+  super().__init__()
+INFO:     Started server process [93376]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:18080 (Press CTRL+C to quit)
+INFO:     127.0.0.1:56509 - "GET / HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:56510 - "POST /apps/users/cli-user/sessions HTTP/1.1" 404 Not Found
+2026-10-05 01:59:50,651 - INFO - agent_change_handler.py:61 - Change detected in agents directory: /Users/jiahaoliu/ws/fde_support/agents/faq_assistant/agent.py
+2026-10-05 02:03:54,638 - INFO - agent_change_handler.py:61 - Change detected in agents directory: /Users/jiahaoliu/ws/fde_support/agents/faq_assistant/agent.py
+2026-10-05 02:04:28,573 - INFO - agent_change_handler.py:61 - Change detected in agents directory: /Users/jiahaoliu/ws/fde_support/agents/faq_assistant/agent.py
+2026-10-05 02:24:56,603 - INFO - agent_change_handler.py:61 - Change detected in agents directory: /Users/jiahaoliu/ws/fde_support/agents/faq_assistant/agent.py
+2026-10-05 02:31:07,343 - INFO - agent_change_handler.py:61 - Change detected in agents directory: /Users/jiahaoliu/ws/fde_support/agents/faq_assistant/agent.py
+2026-10-05 02:35:54,174 - INFO - agent_change_handler.py:61 - Change detected in agents directory: /Users/jiahaoliu/ws/fde_support/agents/faq_assistant/agent.py
+2026-10-05 02:42:27,375 - INFO - agent_change_handler.py:61 - Change detected in agents directory: /Users/jiahaoliu/ws/fde_support/agents/faq_assistant/agent.py
+2026-10-05 02:52:23,915 - INFO - agent_change_handler.py:61 - Change detected in agents directory: /Users/jiahaoliu/ws/fde_support/agents/faq_assistant/agent.py
+2026-10-05 02:53:20,705 - INFO - agent_change_handler.py:61 - Change detected in agents directory: /Users/jiahaoliu/ws/fde_support/agents/faq_assistant/agent.py
+2026-10-05 02:54:42,704 - INFO - agent_change_handler.py:61 - Change detected in agents directory: /Users/jiahaoliu/ws/fde_support/agents/faq_assistant/agent.py
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [93376]
+=== Starting server at 2026-10-05T07:23:47.427405+00:00 ===
+Command: uv run adk api_server --host 127.0.0.1 --port 18080 --reload_agents --no-reload .
+CWD: /Users/jiahaoliu/ws/fde_support/agents/faq_assistant
+=== Started server process 4730 ===
+2026-10-05 03:23:48,326 - INFO - service_factory.py:266 - Using in-memory memory service
+2026-10-05 03:23:48,327 - INFO - local_storage.py:89 - Using per-agent session storage rooted at /Users/jiahaoliu/ws/fde_support/agents
+2026-10-05 03:23:48,327 - INFO - local_storage.py:121 - Using per-agent artifact storage rooted at /Users/jiahaoliu/ws/fde_support/agents
+/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/site-packages/google/adk/cli/fast_api.py:278: UserWarning: [EXPERIMENTAL] InMemoryCredentialService: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+  credential_service = InMemoryCredentialService()
+/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/site-packages/google/adk/auth/credential_service/in_memory_credential_service.py:33: UserWarning: [EXPERIMENTAL] BaseCredentialService: This feature is experimental and may change or be removed in future versions without notice. It may introduce breaking changes at any time.
+  super().__init__()
+INFO:     Started server process [4731]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:18080 (Press CTRL+C to quit)
+INFO:     127.0.0.1:61169 - "GET / HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:61170 - "POST /apps/users/cli-user/sessions HTTP/1.1" 404 Not Found
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [4731]

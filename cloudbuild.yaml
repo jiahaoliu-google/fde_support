@@ -1,0 +1,23 @@
+steps:
+  # 1. Build and push Frontend image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'us-central1-docker.pkg.dev/$PROJECT_ID/fde-support-repo/frontend:latest', '-f', 'frontend/Dockerfile', '.']
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'us-central1-docker.pkg.dev/$PROJECT_ID/fde-support-repo/frontend:latest']
+
+  # 2. Build and push Backend image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'us-central1-docker.pkg.dev/$PROJECT_ID/fde-support-repo/backend:latest', '-f', 'backend/Dockerfile', '.']
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'us-central1-docker.pkg.dev/$PROJECT_ID/fde-support-repo/backend:latest']
+
+  # 3. Build and push Agent Runtime image (FAQ Agent & Sentiment Agent)
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'us-central1-docker.pkg.dev/$PROJECT_ID/fde-support-repo/agent-service:latest', '-f', 'agents/Dockerfile', '.']
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'us-central1-docker.pkg.dev/$PROJECT_ID/fde-support-repo/agent-service:latest']
+
+images:
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/fde-support-repo/frontend:latest'
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/fde-support-repo/backend:latest'
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/fde-support-repo/agent-service:latest'

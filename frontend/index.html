@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FDE Support Portal - Smart Router & Assistant</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-gradient: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%);
+            --panel-bg: rgba(30, 41, 59, 0.75);
+            --panel-border: rgba(255, 255, 255, 0.12);
+            --accent-color: #6366f1;
+            --accent-hover: #4f46e5;
+            --user-msg-bg: #2563eb;
+            --agent-msg-bg: rgba(51, 65, 85, 0.85);
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --card-bg: rgba(15, 23, 42, 0.6);
+            --urgent-bg: rgba(239, 68, 68, 0.15);
+            --urgent-border: rgba(239, 68, 68, 0.4);
+            --neutral-bg: rgba(16, 185, 129, 0.15);
+            --neutral-border: rgba(16, 185, 129, 0.4);
+            --processing-bg: rgba(245, 158, 11, 0.15);
+            --processing-border: rgba(245, 158, 11, 0.4);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
+
+        body {
+            background: var(--bg-gradient);
+            color: var(--text-primary);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            overflow: hidden;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.4); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb { background: rgba(99, 102, 241, 0.5); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(99, 102, 241, 0.8); }
+
+        .header-bar {
+            width: 100%;
+            max-width: 1280px;
+            background: var(--panel-bg);
+            border: 1px solid var(--panel-border);
+            border-radius: 16px;
+            padding: 14px 24px;
+            margin-bottom: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            backdrop-filter: blur(12px);
+            flex-shrink: 0;
+            gap: 16px;
+        }
+
+        .title-group h1 { font-size: 1.2rem; font-weight: 700; color: #ffffff; display: flex; align-items: center; gap: 8px; }
+        .title-group p { font-size: 0.8rem; color: var(--text-secondary); margin-top: 2px; }
+
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .user-badge {
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid var(--panel-border);
+            padding: 6px 12px;
+            border-radius: 10px;
+            font-size: 0.775rem;
+            font-weight: 600;
+            color: #c7d2fe;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .ticket-badge {
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid var(--panel-border);
+            padding: 6px 12px;
+            border-radius: 10px;
+            font-size: 0.775rem;
+            font-weight: 600;
+            color: #c7d2fe;
+        }
+
+        .btn-resolve {
+            background: rgba(239, 68, 68, 0.2);
+            color: #fca5a5;
+            border: 1px solid rgba(239, 68, 68, 0.4);
+            padding: 8px 16px;
+            border-radius: 10px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-resolve:hover { background: rgba(239, 68, 68, 0.4); }
+
+        .btn-new-ticket {
+            background: rgba(16, 185, 129, 0.2);
+            color: #6ee7b7;
+            border: 1px solid rgba(16, 185, 129, 0.4);
+            padding: 8px 16px;
+            border-radius: 10px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-new-ticket:hover { background: rgba(16, 185, 129, 0.4); }
+
+        .btn-logout {
+            background: rgba(99, 102, 241, 0.2);
+            color: #c7d2fe;
+            border: 1px solid rgba(99, 102, 241, 0.4);
+            padding: 8px 16px;
+            border-radius: 10px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-logout:hover {
+            background: rgba(99, 102, 241, 0.4);
+            border-color: #818cf8;
+            color: #ffffff;
+            box-shadow: 0 0 12px rgba(99, 102, 241, 0.4);
+        }
+
+        .service-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid var(--panel-border);
+        }
+
+        .badge-dot { width: 8px; height: 8px; border-radius: 50%; background: #ef4444; }
+        .badge-dot.online { background: #10b981; box-shadow: 0 0 8px #10b981; }
+
+        .app-container {
+            width: 100%;
+            max-width: 1280px;
+            flex: 1;
+            min-height: 0;
+            background: var(--panel-bg);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--panel-border);
+            border-radius: 20px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+            display: grid;
+            grid-template-columns: 1fr 360px;
+        }
+
+        .chat-section {
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid var(--panel-border);
+            height: 100%;
+            min-height: 0;
+        }
+
+        .messages-container {
+            flex: 1;
+            min-height: 0;
+            padding: 24px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 20px;
+            width: 100%;
+        }
+
+        .message-bubble {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-width: 85%;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message-bubble.user {
+            align-self: flex-end !important;
+            margin-left: auto !important;
+            margin-right: 0 !important;
+            text-align: right;
+        }
+
+        .message-bubble.agent {
+            align-self: flex-start !important;
+            margin-right: auto !important;
+            margin-left: 0 !important;
+            text-align: left;
+            width: 85%;
+        }
+
+        .user-text {
+            background: var(--user-msg-bg);
+            color: #ffffff;
+            padding: 14px 18px;
+            border-radius: 16px;
+            border-bottom-right-radius: 4px;
+            font-size: 0.925rem;
+            line-height: 1.5;
+            text-align: left;
+        }
+
+        .agent-card {
+            background: var(--agent-msg-bg);
+            border: 1px solid var(--panel-border);
+            border-radius: 16px;
+            border-bottom-left-radius: 4px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            text-align: left;
+            align-items: flex-start;
+            justify-content: flex-start;
+            width: 100%;
+        }
+
+        .agent-card.interim {
+            border-color: rgba(245, 158, 11, 0.5);
+            background: rgba(30, 41, 59, 0.9);
+            animation: pulseCard 1.5s infinite alternate;
+        }
+
+        @keyframes pulseCard {
+            0% { box-shadow: 0 0 5px rgba(245, 158, 11, 0.2); }
+            100% { box-shadow: 0 0 18px rgba(245, 158, 11, 0.5); }
+        }
+
+        .routing-header {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 8px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            font-size: 0.75rem;
+            width: 100%;
+        }
+
+        .badge-tag {
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-weight: 700;
+            letter-spacing: 0.3px;
+        }
+
+        .badge-tag.urgent { background: var(--urgent-bg); color: #fca5a5; border: 1px solid var(--urgent-border); }
+        .badge-tag.neutral { background: var(--neutral-bg); color: #6ee7b7; border: 1px solid var(--neutral-border); }
+        .badge-tag.processing { background: var(--processing-bg); color: #fcd34d; border: 1px solid var(--processing-border); }
+        .badge-tag.resolved { background: rgba(100, 116, 139, 0.2); color: #cbd5e1; border: 1px solid rgba(100, 116, 139, 0.5); }
+
+        .route-tag {
+            background: rgba(99, 102, 241, 0.2);
+            color: #c7d2fe;
+            border: 1px solid rgba(99, 102, 241, 0.4);
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-weight: 600;
+        }
+
+        .agent-answer {
+            font-size: 0.925rem;
+            line-height: 1.6;
+            color: #f8fafc;
+            white-space: pre-wrap;
+            text-align: left !important;
+            width: 100%;
+        }
+
+        .metadata-box {
+            display: flex;
+            gap: 12px;
+            background: rgba(15, 23, 42, 0.5);
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            width: 100%;
+        }
+
+        .input-area {
+            padding: 20px 24px;
+            border-top: 1px solid var(--panel-border);
+            display: flex;
+            gap: 12px;
+            flex-shrink: 0;
+            background: rgba(15, 23, 42, 0.5);
+        }
+
+        input[type="text"] {
+            flex: 1;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--panel-border);
+            border-radius: 12px;
+            padding: 14px 18px;
+            color: var(--text-primary);
+            font-size: 0.925rem;
+            outline: none;
+        }
+
+        input[type="text"]:focus { border-color: var(--accent-color); }
+        input[type="text"]:disabled { background: rgba(15, 23, 42, 0.2); opacity: 0.5; cursor: not-allowed; }
+
+        button {
+            background: var(--accent-color);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 0 24px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        button:hover { background: var(--accent-hover); }
+        button:disabled { background: #475569; cursor: not-allowed; opacity: 0.6; }
+
+        .sidebar {
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            background: rgba(15, 23, 42, 0.4);
+            overflow-y: auto;
+            min-height: 0;
+        }
+
+        .sidebar h2 { font-size: 0.95rem; font-weight: 700; color: #c7d2fe; display: flex; align-items: center; gap: 8px; }
+
+        .trace-card {
+            background: var(--card-bg);
+            border: 1px solid var(--panel-border);
+            border-radius: 12px;
+            padding: 14px;
+            font-size: 0.8rem;
+            line-height: 1.6;
+        }
+
+        .citation-item {
+            background: rgba(99, 102, 241, 0.15);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            padding: 10px 12px;
+            border-radius: 10px;
+            font-size: 0.8rem;
+            color: #a5b4fc;
+            word-break: break-all;
+            margin-top: 8px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Top Header Bar -->
+    <div class="header-bar">
+        <div class="title-group">
+            <h1>🛡️ FDE Support Portal</h1>
+            <p>Smart Ticket Router & Grounded Knowledge Assistant</p>
+        </div>
+
+        <div class="header-controls">
+            <span class="user-badge" id="userBadge">👤 User: Authenticating...</span>
+            <span class="ticket-badge" id="ticketBadge">🎫 Ticket: Session Ready</span>
+            <button class="btn-resolve" onclick="resolveTicket()" id="resolveBtn">Resolve Ticket</button>
+            <button class="btn-new-ticket" onclick="startNewTicket()" id="newTicketBtn">+ Start New Ticket</button>
+            <button class="btn-logout" onclick="logoutSwitchUser()" id="logoutBtn" title="Clear IAP session and switch Google user">🚪 Sign Out / Switch User</button>
+        </div>
+
+        <div class="service-status">
+            <span class="badge-dot" id="statusDot"></span>
+            <span id="statusText">Checking Backend...</span>
+        </div>
+    </div>
+
+    <!-- Main App Container -->
+    <div class="app-container">
+
+        <!-- Chat Section -->
+        <div class="chat-section">
+            <div class="messages-container" id="messagesContainer">
+                <div class="message-bubble agent">
+                    <div class="agent-card">
+                        <div class="routing-header">
+                            <span class="badge-tag neutral">🟢 SYSTEM READY</span>
+                            <span class="route-tag">Cloud SQL Session Active</span>
+                        </div>
+                        <div class="agent-answer">
+                            Welcome! Submit any customer support inquiry below.
+                            
+• <b>Frustrated / Urgent Tickets</b> will be assigned directly to our Senior Human Queue.
+• <b>Factual Questions</b> will be searched against our knowledge base to provide grounded answers with citations.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="input-area">
+                <input type="text" id="userInput" placeholder="Ask a question or paste a customer ticket (e.g. 'Where is my order #12345?')" onkeypress="handleKeyPress(event)">
+                <button id="sendBtn" onclick="sendQuery()">Submit Ticket</button>
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div>
+                <h2>🔀 Ticket Lifecycle</h2>
+                <div class="trace-card">
+                    <div><b>1. Customer Session Active</b></div>
+                    <div><b>2. Sentiment Evaluation</b></div>
+                    <div><b>3. Status Tracking</b>:</div>
+                    <div style="padding-left: 10px; color: #6ee7b7;">• Neutral ➔ NEW / IN_PROGRESS</div>
+                    <div style="padding-left: 10px; color: #fca5a5;">• Angry ➔ ESCALATED</div>
+                    <div style="padding-left: 10px; color: #cbd5e1;">• Resolved ➔ RESOLVED</div>
+                </div>
+            </div>
+
+            <div>
+                <h2>📌 Active Citation Sources</h2>
+                <div id="citationsList">
+                    <div style="color: var(--text-secondary); font-size: 0.8rem; font-style: italic;">
+                        Retrieved datastore citations will appear here for factual queries.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    <script>
+        const BACKEND_URL = '';
+        
+        let currentCustomerId = '';
+        let currentSessionId = 'ticket_' + Math.random().toString(36).substring(2, 11);
+        let isResolved = false;
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            return String(text)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        function handleKeyPress(e) {
+            if (e.key === 'Enter') sendQuery();
+        }
+
+        async function fetchUserInfo() {
+            try {
+                const res = await fetch(`${BACKEND_URL}/api/user/me`);
+                const data = await res.json();
+                if (data.user_email) {
+                    currentCustomerId = data.user_email;
+                    document.getElementById('userBadge').textContent = `👤 User: ${currentCustomerId}`;
+                    createNewTicketInDB(currentSessionId, currentCustomerId);
+                }
+            } catch (err) {
+                console.error("Failed to fetch user info:", err);
+                currentCustomerId = 'authenticated_user@demo.com';
+                document.getElementById('userBadge').textContent = `👤 User: ${currentCustomerId}`;
+            }
+        }
+
+        async function createNewTicketInDB(sessionId, customerId) {
+            if (!sessionId || !customerId) return;
+            try {
+                const res = await fetch(`${BACKEND_URL}/api/tickets/create`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ session_id: sessionId, customer_id: customerId })
+                });
+                const data = await res.json();
+                if (data.ticket_status) {
+                    updateTicketBadge(data.ticket_status);
+                }
+            } catch (err) {
+                console.error("Failed to create ticket in DB:", err);
+            }
+        }
+
+        function initUI() {
+            fetchUserInfo();
+            updateTicketBadge();
+        }
+
+        function updateTicketBadge(status = 'NEW') {
+            document.getElementById('ticketBadge').textContent = `🎫 Ticket #${currentSessionId.substring(0, 12)}... [${status}]`;
+        }
+
+        async function checkStatus() {
+            try {
+                const res = await fetch(`${BACKEND_URL}/api/status`);
+                const data = await res.json();
+                const dot = document.getElementById('statusDot');
+                const text = document.getElementById('statusText');
+                if (data.backend_service && data.backend_service.status === 'online') {
+                    dot.className = 'badge-dot online';
+                    text.textContent = 'Backend: Online';
+                } else {
+                    dot.className = 'badge-dot';
+                    text.textContent = 'Backend: Offline';
+                }
+            } catch (err) {
+                document.getElementById('statusDot').className = 'badge-dot';
+                document.getElementById('statusText').textContent = 'Backend Offline';
+            }
+        }
+
+        setInterval(checkStatus, 5000);
+        checkStatus();
+        initUI();
+
+        async function sendQuery() {
+            if (isResolved) return;
+
+            const input = document.getElementById('userInput');
+            const text = input.value.trim();
+            if (!text) return;
+
+            const container = document.getElementById('messagesContainer');
+            const citationsList = document.getElementById('citationsList');
+
+            // 1. Render User Message Bubble
+            const userBubble = document.createElement('div');
+            userBubble.className = 'message-bubble user';
+            userBubble.innerHTML = `<div class="user-text">${escapeHtml(text)}</div>`;
+            container.appendChild(userBubble);
+
+            input.value = '';
+            container.scrollTop = container.scrollHeight;
+
+            // 2. Render Single Interim Card
+            const interimBubble = document.createElement('div');
+            interimBubble.className = 'message-bubble agent';
+            interimBubble.innerHTML = `
+                <div class="agent-card interim">
+                    <div class="routing-header">
+                        <span class="badge-tag processing">⚡ Processing your request...</span>
+                    </div>
+                    <div class="agent-answer" style="color: #fcd34d; font-style: italic; text-align: left;">
+                        We are searching our knowledge base and composing the response...
+                    </div>
+                </div>
+            `;
+            container.appendChild(interimBubble);
+            container.scrollTop = container.scrollHeight;
+
+            try {
+                const res = await fetch(`${BACKEND_URL}/api/chat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: text,
+                        session_id: currentSessionId,
+                        customer_id: currentCustomerId
+                    })
+                });
+
+                const data = await res.json();
+
+                // Remove Interim Card
+                if (interimBubble.parentNode) {
+                    container.removeChild(interimBubble);
+                }
+
+                if (res.status === 400 && data.detail && data.detail.includes("RESOLVED")) {
+                    alert(data.detail);
+                    disableChat();
+                    return;
+                }
+
+                if (data.ticket_status) {
+                    updateTicketBadge(data.ticket_status);
+                }
+
+                // 3. Render Final Agent Card
+                const agentBubble = document.createElement('div');
+                agentBubble.className = 'message-bubble agent';
+
+                const isUrgent = data.sentiment === 'URGENT_FRUSTRATED';
+                const sentimentBadgeClass = isUrgent ? 'badge-tag urgent' : 'badge-tag neutral';
+                const sentimentLabel = isUrgent ? '🚨 URGENT / FRUSTRATED' : '🟢 NEUTRAL / FACTUAL';
+
+                const entities = data.extracted_entities || {};
+                const orderId = entities.order_id || data.order_id;
+                const productName = entities.product_name || data.product_name;
+
+                let entityStr = '';
+                if (orderId) entityStr += `Order #${orderId} `;
+                if (productName) entityStr += `[Product: ${productName}] `;
+                let answerText = data.answer || '';
+                if (typeof answerText === 'string' && (answerText.trim().startsWith('{') || answerText.includes('```json'))) {
+                    let cleanStr = answerText.trim();
+                    if (cleanStr.startsWith('```json')) {
+                        cleanStr = cleanStr.split('```json')[1].split('```')[0].trim();
+                    } else if (cleanStr.startsWith('```')) {
+                        cleanStr = cleanStr.split('```')[1].trim();
+                    }
+                    try {
+                        const parsed = JSON.parse(cleanStr);
+                        if (parsed && parsed.answer) {
+                            answerText = parsed.answer;
+                        }
+                    } catch(e) {}
+                }
+
+                agentBubble.innerHTML = `
+                    <div class="agent-card">
+                        <div class="routing-header">
+                            <span class="${sentimentBadgeClass}">${sentimentLabel}</span>
+                            <span class="route-tag">➔ Status: ${data.ticket_status || 'NEW'} | Routed To: ${escapeHtml(data.routed_to)}</span>
+                        </div>
+                        ${entityStr ? `<div class="metadata-box">📌 Extracted Metadata: ${escapeHtml(entityStr)}</div>` : ''}
+                        <div class="agent-answer">${escapeHtml(answerText)}</div>
+                    </div>
+                `;
+                container.appendChild(agentBubble);
+
+                // Update Citations Sidebar
+                citationsList.innerHTML = '';
+                if (data.citations && data.citations.length > 0) {
+                    data.citations.forEach(c => {
+                        const item = document.createElement('div');
+                        item.className = 'citation-item';
+                        if (c.startsWith("Document #") || c.startsWith("Doc:") || c.startsWith("Datastore Doc")) {
+                            item.innerHTML = `<span style="margin-right: 6px;">📄</span><span>${escapeHtml(c)}</span>`;
+                        } else if (c.startsWith("Datastore Search:") || c.startsWith("Web Search:")) {
+                            item.innerHTML = `<span style="margin-right: 6px;">🔍</span><span>${escapeHtml(c)}</span>`;
+                        } else {
+                            item.innerHTML = `<span style="margin-right: 6px;">📌</span><span>${escapeHtml(c)}</span>`;
+                        }
+                        citationsList.appendChild(item);
+                    });
+                } else {
+                    citationsList.innerHTML = '<div style="color: var(--text-secondary); font-size: 0.8rem;">No citations.</div>';
+                }
+
+            } catch (err) {
+                if (interimBubble.parentNode) {
+                    container.removeChild(interimBubble);
+                }
+                const errBubble = document.createElement('div');
+                errBubble.className = 'message-bubble agent';
+                errBubble.innerHTML = `
+                    <div class="agent-card" style="border-color: #ef4444;">
+                        <div class="agent-answer" style="color: #fca5a5;">Error communicating with Smart Router Backend.</div>
+                    </div>
+                `;
+                container.appendChild(errBubble);
+            } finally {
+                container.scrollTop = container.scrollHeight;
+            }
+        }
+
+        async function resolveTicket() {
+            if (isResolved) return;
+            try {
+                const res = await fetch(`${BACKEND_URL}/api/tickets/${currentSessionId}/resolve`, {
+                    method: 'POST'
+                });
+                
+                disableChat();
+                updateTicketBadge('RESOLVED');
+
+                const container = document.getElementById('messagesContainer');
+                const sysBubble = document.createElement('div');
+                sysBubble.className = 'message-bubble agent';
+                sysBubble.innerHTML = `
+                    <div class="agent-card" style="border-color: #64748b;">
+                        <div class="routing-header">
+                            <span class="badge-tag resolved">🔴 TICKET RESOLVED</span>
+                        </div>
+                        <div class="agent-answer" style="color: #cbd5e1; font-style: italic;">
+                            This ticket has been marked as RESOLVED. Chat is closed. Click "+ Start New Ticket" to submit a new inquiry.
+                        </div>
+                    </div>
+                `;
+                container.appendChild(sysBubble);
+                container.scrollTop = container.scrollHeight;
+
+            } catch (err) {
+                alert('Failed to resolve ticket: ' + err);
+            }
+        }
+
+        function disableChat() {
+            isResolved = true;
+            document.getElementById('userInput').disabled = true;
+            document.getElementById('sendBtn').disabled = true;
+            document.getElementById('resolveBtn').disabled = true;
+        }
+
+        function logoutSwitchUser() {
+            // Redirects to IAP logout endpoint to clear GCP_IA_AUTH cookie & switch account
+            window.location.href = "/_gcp_iap/clear_login_cookie";
+        }
+
+        function startNewTicket() {
+            currentSessionId = 'ticket_' + Math.random().toString(36).substring(2, 11);
+            isResolved = false;
+
+            document.getElementById('userInput').disabled = false;
+            document.getElementById('sendBtn').disabled = false;
+            document.getElementById('resolveBtn').disabled = false;
+
+            const container = document.getElementById('messagesContainer');
+            container.innerHTML = `
+                <div class="message-bubble agent">
+                    <div class="agent-card">
+                        <div class="routing-header">
+                            <span class="badge-tag neutral">🟢 NEW TICKET READY</span>
+                            <span class="route-tag">Clean Session Active</span>
+                        </div>
+                        <div class="agent-answer">
+                            Welcome! Fresh ticket session initialized for customer <b>${escapeHtml(currentCustomerId)}</b>.
+                            
+• <b>Frustrated / Urgent Tickets</b> will be assigned directly to our Senior Human Queue.
+• <b>Factual Questions</b> will be searched against our knowledge base to provide grounded answers with citations.
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('citationsList').innerHTML = `
+                <div style="color: var(--text-secondary); font-size: 0.8rem; font-style: italic;">
+                    Retrieved datastore citations will appear here for factual queries.
+                </div>
+            `;
+
+            updateTicketBadge('NEW');
+            createNewTicketInDB(currentSessionId, currentCustomerId);
+        }
+    </script>
+</body>
+</html>

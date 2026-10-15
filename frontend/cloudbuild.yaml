@@ -1,0 +1,21 @@
+steps:
+# Step 1: Build the Frontend Docker image
+- name: 'gcr.io/cloud-builders/docker'
+  args: [ 'build', '-t', 'us-central1-docker.pkg.dev/fde-support-sandbox-dev-jliu/fde-support-repo/frontend:latest', '-f', 'frontend/Dockerfile', 'frontend' ]
+
+# Step 2: Deploy & update Cloud Run frontend service
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  entrypoint: gcloud
+  args:
+  - 'run'
+  - 'deploy'
+  - 'fde-support-frontend'
+  - '--image'
+  - 'us-central1-docker.pkg.dev/fde-support-sandbox-dev-jliu/fde-support-repo/frontend:latest'
+  - '--region'
+  - 'us-central1'
+  - '--platform'
+  - 'managed'
+
+images:
+- 'us-central1-docker.pkg.dev/fde-support-sandbox-dev-jliu/fde-support-repo/frontend:latest'

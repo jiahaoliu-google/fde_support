@@ -1,0 +1,14 @@
+{
+  "remote_agent_runtime_id": "projects/883790454740/locations/us-central1/reasoningEngines/2655856592997580800",
+  "deployment_target": "agent_runtime",
+  "is_a2a": false,
+  "agent_directory": ".",
+  "deployment_timestamp": "2026-10-07T07:13:01.782865+00:00",
+  "pending_operation": {
+    "operation_name": "projects/883790454740/locations/us-central1/reasoningEngines/2655856592997580800/operations/742733449026076672",
+    "project": "fde-support-sandbox-dev-jliu",
+    "location": "us-central1",
+    "deployment_target": "agent_runtime",
+    "started_at": "2026-10-14T23:50:52.132463+00:00"
+  }
+}
