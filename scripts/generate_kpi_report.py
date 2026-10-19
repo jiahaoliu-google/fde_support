@@ -22,6 +22,7 @@ import argparse
 import glob
 import json
 import os
+import re
 import sys
 from datetime import datetime
 from typing import Any, Optional
@@ -48,7 +49,7 @@ JUDGE_KPIS = [
     ("8", "RAG Faithfulness & Semantic QA", "rag_faithfulness", TDD_GATES["faithfulness"], "Nightly", "TDD"),
     ("Scope", "Rubric Scope Guard (Neutral Only)", "rubric_scope_check", 1.0, "PR", "project"),
     ("Rubric", "Case Rubric Adherence", "case_rubric_adherence", 0.85, "Nightly", "project"),
-    ("Hallucination", "Zero Hallucination Rate", "hallucination_v1", 1.0, "PR", "project"),
+    ("Hallucination", "Zero Hallucination Rate", "hallucination", 1.0, "PR", "project"),
 ]
 RUN_ROUTER_HINT = "run `python tests/eval/run_inference.py`"
 
@@ -138,12 +139,18 @@ def lexical_metrics(tdata: Optional[dict]) -> dict:
     return out
 
 
+def canonical_metric(name: Optional[str]) -> Optional[str]:
+    """The eval SDK versions managed metrics (hallucination_v1 locally, hallucination_v2 in
+    a newer SDK). Map every version to one key so a version bump doesn't drop the KPI."""
+    return re.sub(r"_v\d+$", "", name) if name and name.startswith("hallucination") else name
+
+
 def judge_metrics(gdata: Optional[dict]) -> dict:
     """{metric_name: {"mean": float|None, "n": int}} from the grade file summary."""
     out = {}
     for m in (gdata or {}).get("summary_metrics", []):
         valid = m.get("num_cases_valid") or 0
-        out[m.get("metric_name")] = {
+        out[canonical_metric(m.get("metric_name"))] = {
             "mean": m.get("mean_score") if valid else None,
             "n": valid,
             "errors": m.get("num_cases_error") or 0,
@@ -158,7 +165,7 @@ def judge_cases(gdata: Optional[dict], case_ids: list[str]) -> list[dict]:
         metrics = {}
         for cand in case.get("response_candidate_results", []):
             for name, val in (cand.get("metric_results") or {}).items():
-                metrics[name] = {"score": val.get("score"), "explanation": val.get("explanation") or ""}
+                metrics[canonical_metric(name)] = {"score": val.get("score"), "explanation": val.get("explanation") or ""}
         cid = case_ids[idx] if isinstance(idx, int) and idx < len(case_ids) else f"Index {idx}"
         cases.append({"index": idx, "case_id": cid, "metrics": metrics})
     return cases
@@ -426,7 +433,7 @@ def build_report(grade_path: Optional[str], trace_path: Optional[str], system_pa
             rl = lexical["per_case"].get(c["case_id"])
             md.append(f"| **{c['case_id']}** | `{sc('rubric_scope_check')}` | `{sc('rag_faithfulness')}` | "
                       f"`{sc('grounding_key_fact_recall')}` | `{sc('case_rubric_adherence')}` | "
-                      f"`{sc('hallucination_v1')}` | `{fmt_num(rl) if rl is not None else 'N/A'}` |")
+                      f"`{sc('hallucination')}` | `{fmt_num(rl) if rl is not None else 'N/A'}` |")
     else:
         md.append("_No grade file found; run `agents-cli eval grade`._")
 

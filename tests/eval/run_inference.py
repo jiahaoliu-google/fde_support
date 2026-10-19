@@ -480,11 +480,15 @@ def build_traces(cases: list[dict], results: list[dict], faq_agent_info: dict) -
             skipped[case["eval_case_id"]] = reason
             continue
         out = to_inference_case(case)
-        turns = []
+        # One turn holding the whole conversation in order (user, tool calls, answer, user, ...).
+        # Managed single-turn metrics such as hallucination reject agent_data with more than
+        # one turn (400 INVALID_ARGUMENT), but the judges still need the earlier messages
+        # as context for the final answer they score.
+        events = []
         for t in result["turns"]:
-            user = {"author": "user", "content": {"role": "user", "parts": [{"text": t["message"]}]}}
-            events = [user] + [dict(e, author=agent_id) for e in t["faq"]["events"]]
-            turns.append({"turn_index": t["turn"] - 1, "turn_id": f"turn_{t['turn'] - 1}", "events": events})
+            events.append({"author": "user", "content": {"role": "user", "parts": [{"text": t["message"]}]}})
+            events += [dict(e, author=agent_id) for e in t["faq"]["events"]]
+        turns = [{"turn_index": 0, "turn_id": "turn_0", "events": events}]
         final = result["turns"][-1]["faq"]["final_text"]
         out["responses"] = [{"response": {"role": "model", "parts": [{"text": final}]}}]
         out["agent_data"] = {"agents": {agent_id: faq_agent_info}, "turns": turns}

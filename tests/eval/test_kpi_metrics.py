@@ -417,6 +417,14 @@ class TestReport(unittest.TestCase):
         self.assertIn("grounding_key_fact_recall=0", md)
         self.assertIn("missed the baggage fact", md)
 
+    def test_hallucination_metric_version_is_normalized(self):
+        g = _grade()
+        for m in g["summary_metrics"]:
+            if m["metric_name"] == "hallucination_v1":
+                m["metric_name"], m["mean_score"] = "hallucination_v2", 0.5   # newer eval SDK
+        _, data = report.build_report(self._write("g.json", g), None, None)
+        self.assertEqual(self._kpi(data, "Hallucination")["measured"], "50.0%")
+
 
 # ---------------------------------------------------------------------------
 # Grading traces from the same run (one inference pass feeds every metric)
@@ -466,10 +474,12 @@ class TestGradingTraces(unittest.TestCase):
         m1 = next(c for c in traces["eval_cases"] if c["eval_case_id"] == "M-1")
         self.assertIn("Do X.", m1["responses"][0]["response"]["parts"][0]["text"])
         turns = m1["agent_data"]["turns"]
-        self.assertEqual(len(turns), 2)
-        self.assertEqual(turns[1]["events"][0], {"author": "user", "content": {
-            "role": "user", "parts": [{"text": "Spotify: why?"}]}})
-        self.assertTrue(all(e["author"] == "faq_assistant_agent" for e in turns[1]["events"][1:]))
+        self.assertEqual(len(turns), 1)                              # single-turn metrics need 1 turn
+        events = turns[0]["events"]
+        users = [e["content"]["parts"][0]["text"] for e in events if e["author"] == "user"]
+        self.assertEqual(users, ["help", "Spotify: why?"])          # whole conversation, in order
+        self.assertEqual(events[0]["author"], "user")
+        self.assertEqual(sum(1 for e in events if e["author"] == "faq_assistant_agent"), 6)  # 3 per turn
         self.assertEqual(m1["agent_data"]["agents"]["faq_assistant_agent"]["instruction"], "be helpful")
         self.assertEqual(m1["key_facts"], ["Do X."])                 # golden fields kept for the judges
         self.assertEqual(m1["prompt"]["parts"][0]["text"], "Spotify: why?")
