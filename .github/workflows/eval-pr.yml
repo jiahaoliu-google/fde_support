@@ -1,0 +1,186 @@
+# Pre-deployment agent evaluation on pull requests.
+#
+# Runs the PR's agent code LOCALLY on the GitHub-hosted runner (ubuntu-latest VM, no
+# container): both agents are loaded in-process with ADK Runner by
+# tests/eval/run_inference.py. The deployed Agent Runtime engines are never called.
+# Gemini (Vertex AI) and the Discovery Engine datastore are real GCP services, billed to
+# the GCP project of the CI service account (~$1.30 inference + LLM judge per run).
+#
+# All 100 golden tickets run once:
+#   routing / latency / error rate / cost  -> every ticket
+#   ROUGE-L, BLEU-4 and LLM judges          -> the neutral, search-ready tickets, graded
+#                                              from the SAME answers (traces.json)
+#
+# REPORT-ONLY: KPI results never fail this workflow. It fails only if the eval could not
+# run (auth, crash, no cases, grading error), so a broken pipeline is still visible.
+#
+# Results: sticky PR comment, warning annotations (Checks tab), job summary (run page),
+# and the `eval-results` artifact.
+#
+# Required repository secrets (Workload Identity Federation, no JSON keys):
+#   GCP_WORKLOAD_IDENTITY_PROVIDER  projects/<num>/locations/global/workloadIdentityPools/<pool>/providers/<provider>
+#   GCP_SERVICE_ACCOUNT             <name>@<project>.iam.gserviceaccount.com
+#                                   (roles/aiplatform.user, roles/discoveryengine.viewer)
+name: Agent Evaluation (PR)
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# A new push to the same PR cancels the previous (paid) run.
+concurrency:
+  group: agent-eval-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    name: Eval unit tests (offline)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            agents/faq_assistant/requirements.txt
+            agents/sentiment_router/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt \
+                      -r agents/faq_assistant/requirements.txt \
+                      -r agents/sentiment_router/requirements.txt \
+                      pyyaml
+
+      - name: Eval harness, KPI math and report tests
+        run: python -m unittest discover -s tests/eval -p "test_*.py" -v
+
+  agent-eval:
+    name: Agent eval (100 tickets, report-only)
+    needs: unit
+    # Fork PRs get no OIDC token, so they can't authenticate to GCP: skip instead of failing.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      id-token: write        # Workload Identity Federation
+      pull-requests: write   # sticky PR comment
+    env:
+      GOOGLE_GENAI_USE_VERTEXAI: 'true'
+      # Defensive: the harness never calls deployed agents; make sure nothing can.
+      FAQ_AGENT_URL: ''
+      SENTIMENT_AGENT_URL: ''
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            agents/faq_assistant/requirements.txt
+            agents/sentiment_router/requirements.txt
+
+      - name: Authenticate to Google Cloud (WIF)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      # agents-cli requires `uv` on PATH for every command (it checks at startup).
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt \
+                      -r agents/faq_assistant/requirements.txt \
+                      -r agents/sentiment_router/requirements.txt \
+                      pyyaml
+          # agents-cli in its own uv tool environment so it can't change the agents' dependency versions.
+          uv tool install google-agents-cli==1.3.0
+          uv tool dir --bin >> "$GITHUB_PATH"
+          # Requirements are unpinned: log what was resolved so CI vs. local drift is visible.
+          python -c "import importlib.metadata as m; [print(p, m.version(p)) for p in ('google-adk', 'google-genai', 'google-cloud-discoveryengine')]"
+
+      - name: Check agents-cli
+        run: agents-cli --version
+
+      - name: Run agents on all golden tickets (PR code, in-process)
+        id: infer
+        run: python tests/eval/run_inference.py --concurrency 3 --github-output
+
+      - name: Grade answers with LLM judges
+        id: grade
+        env:
+          RUN_DIR: ${{ steps.infer.outputs.run_dir }}
+        run: |
+          n=$(python -c "import json,sys; print(len(json.load(open(sys.argv[1]))['eval_cases']))" "$RUN_DIR/traces.json")
+          if [ "$n" -eq 0 ]; then
+            echo "::warning title=LLM judge skipped::No neutral, search-ready ticket produced an FAQ answer to grade."
+            exit 0
+          fi
+          agents-cli eval grade \
+            --traces "$RUN_DIR/traces.json" \
+            --config tests/eval/eval_config_faq_rubric.yaml \
+            --output "$RUN_DIR/grade"
+
+      - name: Build KPI report
+        id: report
+        if: ${{ always() && steps.infer.outputs.run_dir != '' }}
+        env:
+          RUN_DIR: ${{ steps.infer.outputs.run_dir }}
+        run: |
+          python scripts/generate_kpi_report.py \
+            --run-dir "$RUN_DIR" \
+            --out-dir "$RUN_DIR" \
+            --pr-comment "$RUN_DIR/pr_comment.md" \
+            --run-url "$RUN_URL" \
+            --annotations
+          cat "$RUN_DIR/kpi_report.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Post or update PR comment
+        if: ${{ always() && github.event_name == 'pull_request' && steps.report.outcome == 'success' }}
+        uses: actions/github-script@v7
+        env:
+          COMMENT_FILE: ${{ steps.infer.outputs.run_dir }}/pr_comment.md
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync(process.env.COMMENT_FILE, 'utf8');
+            const marker = '<!-- fde-support-agent-eval -->';
+            const { owner, repo } = context.repo;
+            const issue_number = context.payload.pull_request.number;
+            const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number });
+            const mine = comments.find(c => c.user.type === 'Bot' && c.body.includes(marker));
+            if (mine) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: mine.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
+
+      - name: Upload eval artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-results
+          path: artifacts/eval/
+          if-no-files-found: warn
+          retention-days: 90

@@ -1,0 +1,4334 @@
+{
+  "eval_cases": [
+    {
+      "eval_case_id": "S-001",
+      "segment": "S",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "could you kindly let me know if the SmartShop app is out of action please?"
+          }
+        ]
+      },
+      "source_doc_ids": [
+        "twcs_4643"
+      ],
+      "source_customer_question": "@sainsburys could you kindly let me know if the SmartShop app is out of action please?",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "Hi Andrew, we're not aware of any ongoing issues. Can you provide some more info about the issues you're having? Corey"
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "we're not aware of any ongoing issues"
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "covers_fact_1",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): we're not aware of any ongoing issues"
+                }
+              }
+            },
+            {
+              "rubric_id": "no_hallucination",
+              "content": {
+                "property": {
+                  "description": "Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details."
+                }
+              }
+            },
+            {
+              "rubric_id": "policy_compliance",
+              "content": {
+                "property": {
+                  "description": "The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "rubric_items": [
+        "covers_fact_1: The answer conveys this fact (paraphrase is fine): we're not aware of any ongoing issues",
+        "no_hallucination: Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details.",
+        "policy_compliance: The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+      ]
+    },
+    {
+      "eval_case_id": "S-002",
+      "segment": "S",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "Will we receive any kind of compensation for this inconvenience?"
+          }
+        ]
+      },
+      "source_doc_ids": [
+        "twcs_239685"
+      ],
+      "source_customer_question": "@British_Airways Will we receive any kind of compensation for this inconvenience?",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "I'm afraid we wouldn't offer compensation for delayed baggage, Adam. Apologies once again for any disappointment. ^Lisa"
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "I'm afraid we wouldn't offer compensation for delayed baggage, Adam"
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "covers_fact_1",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): I'm afraid we wouldn't offer compensation for delayed baggage, Adam"
+                }
+              }
+            },
+            {
+              "rubric_id": "no_hallucination",
+              "content": {
+                "property": {
+                  "description": "Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details."
+                }
+              }
+            },
+            {
+              "rubric_id": "policy_compliance",
+              "content": {
+                "property": {
+                  "description": "The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "rubric_items": [
+        "covers_fact_1: The answer conveys this fact (paraphrase is fine): I'm afraid we wouldn't offer compensation for delayed baggage, Adam",
+        "no_hallucination: Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details.",
+        "policy_compliance: The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+      ]
+    },
+    {
+      "eval_case_id": "S-003",
+      "segment": "S",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "why wont u put up an app of #CBSAllAccess so I can watch #StarTrekDiscovery? I ws happy w/ u until now. Pls don't mk me cancel svc"
+          }
+        ]
+      },
+      "source_doc_ids": [
+        "twcs_263041"
+      ],
+      "source_customer_question": "@115900 why wont u put up an app of #CBSAllAccess so I can watch #StarTrekDiscovery? I ws happy w/ u until now. Pls don't mk me cancel svc",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "CBS All Access is not a Comcast service. We do have the XFINITY Stream App, however. -JW"
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "CBS All Access is not a Comcast service",
+        "We do have the XFINITY Stream App, however"
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "covers_fact_1",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): CBS All Access is not a Comcast service"
+                }
+              }
+            },
+            {
+              "rubric_id": "covers_fact_2",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): We do have the XFINITY Stream App, however"
+                }
+              }
+            },
+            {
+              "rubric_id": "no_hallucination",
+              "content": {
+                "property": {
+                  "description": "Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details."
+                }
+              }
+            },
+            {
+              "rubric_id": "policy_compliance",
+              "content": {
+                "property": {
+                  "description": "The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "rubric_items": [
+        "covers_fact_1: The answer conveys this fact (paraphrase is fine): CBS All Access is not a Comcast service",
+        "covers_fact_2: The answer conveys this fact (paraphrase is fine): We do have the XFINITY Stream App, however",
+        "no_hallucination: Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details.",
+        "policy_compliance: The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+      ]
+    },
+    {
+      "eval_case_id": "S-004",
+      "segment": "S",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "Just flew RST ATL on H7HMWE. At least 3 comfort seats avail but I did not get upgraded with my Silver status. Why not?"
+          }
+        ]
+      },
+      "source_doc_ids": [
+        "twcs_219099"
+      ],
+      "source_customer_question": "@delta Just flew RST ATL on H7HMWE. At least 3 comfort seats avail but I did not get upgraded with my Silver status. Why not?",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "Hi, Don. I do not see availability on the seat map but I will forward this to our Leadership team for review. *ALA"
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "I do not see availability on the seat map but I will forward this to our Leadership team for review"
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "covers_fact_1",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): I do not see availability on the seat map but I will forward this to our Leadership team for review"
+                }
+              }
+            },
+            {
+              "rubric_id": "no_hallucination",
+              "content": {
+                "property": {
+                  "description": "Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details."
+                }
+              }
+            },
+            {
+              "rubric_id": "policy_compliance",
+              "content": {
+                "property": {
+                  "description": "The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "rubric_items": [
+        "covers_fact_1: The answer conveys this fact (paraphrase is fine): I do not see availability on the seat map but I will forward this to our Leadership team for review",
+        "no_hallucination: Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details.",
+        "policy_compliance: The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+      ]
+    },
+    {
+      "eval_case_id": "S-005",
+      "segment": "S",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "I ordered and paid for an item last night for fast track but cancelled it today - does that mean the money won’t be taken or will it be refunded back to the card? Thanks"
+          }
+        ]
+      },
+      "source_doc_ids": [
+        "twcs_146984"
+      ],
+      "source_customer_question": "@ArgosHelpers I ordered and paid for an item last night for fast track but cancelled it today - does that mean the money won’t be taken or will it be refunded back to the card? Thanks",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "Hi there. If it was for Delivery, we will have taken the money and will refund it. If it was for collection, we won't have taken the money yet. Hope this helps ~ Alyson"
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "If it was for Delivery, we will have taken the money and will refund it",
+        "If it was for collection, we won't have taken the money yet"
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "covers_fact_1",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): If it was for Delivery, we will have taken the money and will refund it"
+                }
+              }
+            },
+            {
+              "rubric_id": "covers_fact_2",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): If it was for collection, we won't have taken the money yet"
+                }
+              }
+            },
+            {
+              "rubric_id": "no_hallucination",
+              "content": {
+                "property": {
+                  "description": "Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details."
+                }
+              }
+            },
+            {
+              "rubric_id": "policy_compliance",
+              "content": {
+                "property": {
+                  "description": "The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "rubric_items": [
+        "covers_fact_1: The answer conveys this fact (paraphrase is fine): If it was for Delivery, we will have taken the money and will refund it",
+        "covers_fact_2: The answer conveys this fact (paraphrase is fine): If it was for collection, we won't have taken the money yet",
+        "no_hallucination: Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details.",
+        "policy_compliance: The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+      ]
+    },
+    {
+      "eval_case_id": "S-006",
+      "segment": "S",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "What is fax number? Can you change verif addres with fax to use e-mail?"
+          }
+        ]
+      },
+      "source_doc_ids": [
+        "twcs_255480"
+      ],
+      "source_customer_question": "@AmazonHelp What is fax number? Can you change verif addres with fax to use e-mail?",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "The fax number will be included in the e-mail our Account Specialists send out. Have you received this message from them? ^JM"
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "The fax number will be included in the e-mail our Account Specialists send out"
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "covers_fact_1",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): The fax number will be included in the e-mail our Account Specialists send out"
+                }
+              }
+            },
+            {
+              "rubric_id": "no_hallucination",
+              "content": {
+                "property": {
+                  "description": "Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details."
+                }
+              }
+            },
+            {
+              "rubric_id": "policy_compliance",
+              "content": {
+                "property": {
+                  "description": "The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "rubric_items": [
+        "covers_fact_1: The answer conveys this fact (paraphrase is fine): The fax number will be included in the e-mail our Account Specialists send out",
+        "no_hallucination: Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details.",
+        "policy_compliance: The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+      ]
+    },
+    {
+      "eval_case_id": "S-007",
+      "segment": "S",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "You promise flat fare of $3.49 in your pass and then charge 30 bucks for the trip? What's going on here?"
+          }
+        ]
+      },
+      "source_doc_ids": [
+        "twcs_63270"
+      ],
+      "source_customer_question": "@115873 You promise flat fare of $3.49 in your pass and then charge 30 bucks for the trip? What's going on here? https://t.co/Hkkiu7wsxo",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "We can definitely take a closer look! Contact us here so we can help."
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "We can definitely take a closer look"
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "covers_fact_1",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): We can definitely take a closer look"
+                }
+              }
+            },
+            {
+              "rubric_id": "no_hallucination",
+              "content": {
+                "property": {
+                  "description": "Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details."
+                }
+              }
+            },
+            {
+              "rubric_id": "policy_compliance",
+              "content": {
+                "property": {
+                  "description": "The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "rubric_items": [
+        "covers_fact_1: The answer conveys this fact (paraphrase is fine): We can definitely take a closer look",
+        "no_hallucination: Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details.",
+        "policy_compliance: The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+      ]
+    },
+    {
+      "eval_case_id": "S-008",
+      "segment": "S",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "Can I use my 3 of a kind on WWII? 🤔😂 plz"
+          }
+        ]
+      },
+      "source_doc_ids": [
+        "twcs_2280"
+      ],
+      "source_customer_question": "@116226 @ATVIAssist Can I use my 3 of a kind on WWII? 🤔😂 plz",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "Your CoD points are saved to your CoD wallet and will be accessible in all CoD games that use these points. ^CB"
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "Your CoD points are saved to your CoD wallet and will be accessible in all CoD games that use these points"
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "covers_fact_1",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): Your CoD points are saved to your CoD wallet and will be accessible in all CoD games that use these points"
+                }
+              }
+            },
+            {
+              "rubric_id": "no_hallucination",
+              "content": {
+                "property": {
+                  "description": "Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details."
+                }
+              }
+            },
+            {
+              "rubric_id": "policy_compliance",
+              "content": {
+                "property": {
+                  "description": "The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "rubric_items": [
+        "covers_fact_1: The answer conveys this fact (paraphrase is fine): Your CoD points are saved to your CoD wallet and will be accessible in all CoD games that use these points",
+        "no_hallucination: Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details.",
+        "policy_compliance: The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+      ]
+    },
+    {
+      "eval_case_id": "S-009",
+      "segment": "S",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "What the heck is an airplane swap and why is it delaying my flight by 2 hours.? Not a weather situation anywhere today."
+          }
+        ]
+      },
+      "source_doc_ids": [
+        "twcs_240805"
+      ],
+      "source_customer_question": "@SouthwestAir What the heck is an airplane swap and why is it delaying my flight by 2 hours.? Not a weather situation anywhere today.",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "Hi Julie, sometimes one plane needs some maintenance or is running behind, so we swap it out in order to avoid further delays. (1/2) ^SW"
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "sometimes one plane needs some maintenance or is running behind, so we swap it out in order to avoid further delays"
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "covers_fact_1",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): sometimes one plane needs some maintenance or is running behind, so we swap it out in order to avoid further delays"
+                }
+              }
+            },
+            {
+              "rubric_id": "no_hallucination",
+              "content": {
+                "property": {
+                  "description": "Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details."
+                }
+              }
+            },
+            {
+              "rubric_id": "policy_compliance",
+              "content": {
+                "property": {
+                  "description": "The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "rubric_items": [
+        "covers_fact_1: The answer conveys this fact (paraphrase is fine): sometimes one plane needs some maintenance or is running behind, so we swap it out in order to avoid further delays",
+        "no_hallucination: Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details.",
+        "policy_compliance: The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+      ]
+    },
+    {
+      "eval_case_id": "S-010",
+      "segment": "S",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "trying to get a baggage receipt from 1 virgin and 1 alaska flight from the past couple days & trips aren't in my account. advice?"
+          }
+        ]
+      },
+      "source_doc_ids": [
+        "twcs_263336"
+      ],
+      "source_customer_question": "@AlaskaAir trying to get a baggage receipt from 1 virgin and 1 alaska flight from the past couple days &amp; trips aren't in my account. advice?",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "You can contact Customer Care at (800) 654-5669 and an agent can help track down the flight to issue a baggage receipt! -Sara"
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "You can contact Customer Care at (800) 654-5669 and an agent can help track down the flight to issue a baggage receipt"
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "covers_fact_1",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): You can contact Customer Care at (800) 654-5669 and an agent can help track down the flight to issue a baggage receipt"
+                }
+              }
+            },
+            {
+              "rubric_id": "no_hallucination",
+              "content": {
+                "property": {
+                  "description": "Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details."
+                }
+              }
+            },
+            {
+              "rubric_id": "policy_compliance",
+              "content": {
+                "property": {
+                  "description": "The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "rubric_items": [
+        "covers_fact_1: The answer conveys this fact (paraphrase is fine): You can contact Customer Care at (800) 654-5669 and an agent can help track down the flight to issue a baggage receipt",
+        "no_hallucination: Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details.",
+        "policy_compliance: The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+      ]
+    },
+    {
+      "eval_case_id": "S-011",
+      "segment": "S",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "calling your cust care line is useless. 1 hour on phone, transferred multiple times, disconnected 2x. How do I speak to someone in sales who can resolve my problem?"
+          }
+        ]
+      },
+      "source_doc_ids": [
+        "twcs_137947"
+      ],
+      "source_customer_question": "@DellCares @118197 calling your cust care line is useless. 1 hour on phone, transferred multiple times, disconnected 2x. How do I speak to someone in sales who can resolve my problem?",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "Hi Therese, Greetings of the day! This is a follow-up message. Please DM us the requested details so that we can review the same and assist you further. ^PK"
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "Greetings of the day",
+        "This is a follow-up message"
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "covers_fact_1",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): Greetings of the day"
+                }
+              }
+            },
+            {
+              "rubric_id": "covers_fact_2",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): This is a follow-up message"
+                }
+              }
+            },
+            {
+              "rubric_id": "no_hallucination",
+              "content": {
+                "property": {
+                  "description": "Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details."
+                }
+              }
+            },
+            {
+              "rubric_id": "policy_compliance",
+              "content": {
+                "property": {
+                  "description": "The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "rubric_items": [
+        "covers_fact_1: The answer conveys this fact (paraphrase is fine): Greetings of the day",
+        "covers_fact_2: The answer conveys this fact (paraphrase is fine): This is a follow-up message",
+        "no_hallucination: Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details.",
+        "policy_compliance: The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+      ]
+    },
+    {
+      "eval_case_id": "S-012",
+      "segment": "S",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "What's the deal with me queuing up for 15 minutes in your Rochford store intending to use a £5 Voucher only to be told at the front of the queue the voucher system is down and I can not use it! Highly inconvenienced, embarrassed and Hungry!! 😡"
+          }
+        ]
+      },
+      "source_doc_ids": [
+        "twcs_90081"
+      ],
+      "source_customer_question": "@GreggsOfficial What's the deal with me queuing up for 15 minutes in your Rochford store intending to use a £5 Voucher only to be told at the front of the queue the voucher system is down and I can not use it! Highly inconvenienced, embarrassed and Hungry!! 😡",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "Really sorry Ashley, we're having some unexpected technical issues atm!"
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "Really sorry Ashley, we're having some unexpected technical issues atm"
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "covers_fact_1",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): Really sorry Ashley, we're having some unexpected technical issues atm"
+                }
+              }
+            },
+            {
+              "rubric_id": "no_hallucination",
+              "content": {
+                "property": {
+                  "description": "Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details."
+                }
+              }
+            },
+            {
+              "rubric_id": "policy_compliance",
+              "content": {
+                "property": {
+                  "description": "The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "rubric_items": [
+        "covers_fact_1: The answer conveys this fact (paraphrase is fine): Really sorry Ashley, we're having some unexpected technical issues atm",
+        "no_hallucination: Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details.",
+        "policy_compliance: The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+      ]
+    },
+    {
+      "eval_case_id": "S-013",
+      "segment": "S",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "Outage AGAIN today? Service came on at 11:15am Forest Hills, NY and just went out again. What’s going on now?"
+          }
+        ]
+      },
+      "source_doc_ids": [
+        "twcs_121776"
+      ],
+      "source_customer_question": "@Ask_Spectrum Outage AGAIN today? Service came on at 11:15am Forest Hills, NY and just went out again. What’s going on now?",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "I apologize for the issues we are having with the services. We have actually been a victim of vandalism. We are working with local authorities and anyone who can help us to prevent this. I see that you have spoken with us regarding compensation. We will..."
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "I apologize for the issues we are having with the services",
+        "We have actually been a victim of vandalism",
+        "We are working with local authorities and anyone who can help us to prevent this"
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "covers_fact_1",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): I apologize for the issues we are having with the services"
+                }
+              }
+            },
+            {
+              "rubric_id": "covers_fact_2",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): We have actually been a victim of vandalism"
+                }
+              }
+            },
+            {
+              "rubric_id": "covers_fact_3",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): We are working with local authorities and anyone who can help us to prevent this"
+                }
+              }
+            },
+            {
+              "rubric_id": "no_hallucination",
+              "content": {
+                "property": {
+                  "description": "Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details."
+                }
+              }
+            },
+            {
+              "rubric_id": "policy_compliance",
+              "content": {
+                "property": {
+                  "description": "The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "rubric_items": [
+        "covers_fact_1: The answer conveys this fact (paraphrase is fine): I apologize for the issues we are having with the services",
+        "covers_fact_2: The answer conveys this fact (paraphrase is fine): We have actually been a victim of vandalism",
+        "covers_fact_3: The answer conveys this fact (paraphrase is fine): We are working with local authorities and anyone who can help us to prevent this",
+        "no_hallucination: Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details.",
+        "policy_compliance: The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+      ]
+    },
+    {
+      "eval_case_id": "S-014",
+      "segment": "S",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "what's up with your safaricom home in Thindigua?"
+          }
+        ]
+      },
+      "source_doc_ids": [
+        "twcs_122649"
+      ],
+      "source_customer_question": "@Safaricom_Care what's up with your safaricom home in Thindigua?",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "Good morning Kathy, apologies for the inconvenience. Our team is working to resolve this as soon as possible. ^GR"
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "Good morning Kathy, apologies for the inconvenience",
+        "Our team is working to resolve this as soon as possible"
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "covers_fact_1",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): Good morning Kathy, apologies for the inconvenience"
+                }
+              }
+            },
+            {
+              "rubric_id": "covers_fact_2",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): Our team is working to resolve this as soon as possible"
+                }
+              }
+            },
+            {
+              "rubric_id": "no_hallucination",
+              "content": {
+                "property": {
+                  "description": "Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details."
+                }
+              }
+            },
+            {
+              "rubric_id": "policy_compliance",
+              "content": {
+                "property": {
+                  "description": "The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "rubric_items": [
+        "covers_fact_1: The answer conveys this fact (paraphrase is fine): Good morning Kathy, apologies for the inconvenience",
+        "covers_fact_2: The answer conveys this fact (paraphrase is fine): Our team is working to resolve this as soon as possible",
+        "no_hallucination: Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details.",
+        "policy_compliance: The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+      ]
+    },
+    {
+      "eval_case_id": "S-015",
+      "segment": "S",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "How can I tell if my parcel has been delivered if the tracker has stopped and not been updated since Sunday? Was shipped on Prime and is very late now"
+          }
+        ]
+      },
+      "source_doc_ids": [
+        "twcs_91521"
+      ],
+      "source_customer_question": "@AmazonHelp @115830 How can I tell if my parcel has been delivered if the tracker has stopped and not been updated since Sunday? Was shipped on Prime and is very late now https://t.co/Mk7dWb6NUv",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "I am sorry to hear this, Simon. If you have not received this item by tomorrow, please contact us directly using the following link: so we can look into this for you.^SM"
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "I am sorry to hear this, Simon"
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "covers_fact_1",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): I am sorry to hear this, Simon"
+                }
+              }
+            },
+            {
+              "rubric_id": "no_hallucination",
+              "content": {
+                "property": {
+                  "description": "Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details."
+                }
+              }
+            },
+            {
+              "rubric_id": "policy_compliance",
+              "content": {
+                "property": {
+                  "description": "The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "rubric_items": [
+        "covers_fact_1: The answer conveys this fact (paraphrase is fine): I am sorry to hear this, Simon",
+        "no_hallucination: Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details.",
+        "policy_compliance: The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+      ]
+    },
+    {
+      "eval_case_id": "S-016",
+      "segment": "S",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "Yung wassup with the letter “I️”???"
+          }
+        ]
+      },
+      "source_doc_ids": [
+        "twcs_52310"
+      ],
+      "source_customer_question": "Yung wassup with the letter “I️”??? @115858 @AppleSupport",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "We're happy to assist. Which iOS version are you currently running? Go to Settings > General > About for the version."
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "Go to Settings > General > About for the version"
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "covers_fact_1",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): Go to Settings > General > About for the version"
+                }
+              }
+            },
+            {
+              "rubric_id": "no_hallucination",
+              "content": {
+                "property": {
+                  "description": "Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details."
+                }
+              }
+            },
+            {
+              "rubric_id": "policy_compliance",
+              "content": {
+                "property": {
+                  "description": "The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "rubric_items": [
+        "covers_fact_1: The answer conveys this fact (paraphrase is fine): Go to Settings > General > About for the version",
+        "no_hallucination: Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details.",
+        "policy_compliance: The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+      ]
+    },
+    {
+      "eval_case_id": "S-017",
+      "segment": "S",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "Ohhh! 😊 I see what you guys did! I like noise reduction slider. Was that always there? I remember color noise reduction tho. Thx again ✌🏾✊🏾💯"
+          }
+        ]
+      },
+      "source_doc_ids": [
+        "twcs_276744"
+      ],
+      "source_customer_question": "@AdobeCare Ohhh! 😊 I see what you guys did! I like noise reduction slider. Was that always there? I remember color noise reduction tho. Thx again ✌🏾✊🏾💯 https://t.co/epHb8eBDiZ",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "You're welcome- hope you enjoy! ^B"
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "You're welcome- hope you enjoy"
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "covers_fact_1",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): You're welcome- hope you enjoy"
+                }
+              }
+            },
+            {
+              "rubric_id": "no_hallucination",
+              "content": {
+                "property": {
+                  "description": "Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details."
+                }
+              }
+            },
+            {
+              "rubric_id": "policy_compliance",
+              "content": {
+                "property": {
+                  "description": "The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "rubric_items": [
+        "covers_fact_1: The answer conveys this fact (paraphrase is fine): You're welcome- hope you enjoy",
+        "no_hallucination: Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details.",
+        "policy_compliance: The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+      ]
+    },
+    {
+      "eval_case_id": "S-018",
+      "segment": "S",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "Is there a minimum amount you have to pay to be able to send from one bluebird account to another?"
+          }
+        ]
+      },
+      "source_doc_ids": [
+        "twcs_13524"
+      ],
+      "source_customer_question": "@AskAmex Is there a minimum amount you have to pay to be able to send from one bluebird account to another?",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "For immediate assistance,pls contact Bluebird Customer Service at: 877-486-5990,24/7. Thank you."
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "For immediate assistance,pls contact Bluebird Customer Service at: 877-486-5990,24/7"
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "covers_fact_1",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): For immediate assistance,pls contact Bluebird Customer Service at: 877-486-5990,24/7"
+                }
+              }
+            },
+            {
+              "rubric_id": "no_hallucination",
+              "content": {
+                "property": {
+                  "description": "Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details."
+                }
+              }
+            },
+            {
+              "rubric_id": "policy_compliance",
+              "content": {
+                "property": {
+                  "description": "The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "rubric_items": [
+        "covers_fact_1: The answer conveys this fact (paraphrase is fine): For immediate assistance,pls contact Bluebird Customer Service at: 877-486-5990,24/7",
+        "no_hallucination: Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details.",
+        "policy_compliance: The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+      ]
+    },
+    {
+      "eval_case_id": "S-019",
+      "segment": "S",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "First IDEA should confirm that 8652900102 is your number or not? then What details did Idea wants from me for verification. Tell me & I will give you. IDEA executive said that she doesn't know to whom she is talking? Unfortunate reply! Is this the way to behave with customer?"
+          }
+        ]
+      },
+      "source_doc_ids": [
+        "twcs_140294"
+      ],
+      "source_customer_question": "@idea_cares First IDEA should confirm that  8652900102 is your number or not? then What details did Idea wants from me for verification.\nTell me &amp; I will give you.\n\nIDEA executive said that she doesn't know to whom she is talking? Unfortunate reply!\n\nIs this the way to behave with customer?",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "We are sorry for the inconvenience caused to you. Our team will get in touch with you shortly. Regards, Arti"
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "Our team will get in touch with you shortly"
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "covers_fact_1",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): Our team will get in touch with you shortly"
+                }
+              }
+            },
+            {
+              "rubric_id": "no_hallucination",
+              "content": {
+                "property": {
+                  "description": "Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details."
+                }
+              }
+            },
+            {
+              "rubric_id": "policy_compliance",
+              "content": {
+                "property": {
+                  "description": "The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "rubric_items": [
+        "covers_fact_1: The answer conveys this fact (paraphrase is fine): Our team will get in touch with you shortly",
+        "no_hallucination: Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details.",
+        "policy_compliance: The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+      ]
+    },
+    {
+      "eval_case_id": "S-020",
+      "segment": "S",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "is your driver site down ?"
+          }
+        ]
+      },
+      "source_doc_ids": [
+        "twcs_197339"
+      ],
+      "source_customer_question": "@HPSupport is your driver site down ?",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "Hi Scout. I see that you are trying to reach our support. How may I help? 1/2 ^Maditau"
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "I see that you are trying to reach our support"
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "covers_fact_1",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): I see that you are trying to reach our support"
+                }
+              }
+            },
+            {
+              "rubric_id": "no_hallucination",
+              "content": {
+                "property": {
+                  "description": "Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details."
+                }
+              }
+            },
+            {
+              "rubric_id": "policy_compliance",
+              "content": {
+                "property": {
+                  "description": "The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "rubric_items": [
+        "covers_fact_1: The answer conveys this fact (paraphrase is fine): I see that you are trying to reach our support",
+        "no_hallucination: Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details.",
+        "policy_compliance: The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+      ]
+    },
+    {
+      "eval_case_id": "S-021",
+      "segment": "S",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "What’s the update between and ? Did you reach a settlement yet ?"
+          }
+        ]
+      },
+      "source_doc_ids": [
+        "twcs_48451"
+      ],
+      "source_customer_question": "What’s the update between @126787 and @115722 ? Did you reach a settlement yet ?",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "There has been no update. ^TXA"
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "There has been no update"
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "covers_fact_1",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): There has been no update"
+                }
+              }
+            },
+            {
+              "rubric_id": "no_hallucination",
+              "content": {
+                "property": {
+                  "description": "Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details."
+                }
+              }
+            },
+            {
+              "rubric_id": "policy_compliance",
+              "content": {
+                "property": {
+                  "description": "The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "rubric_items": [
+        "covers_fact_1: The answer conveys this fact (paraphrase is fine): There has been no update",
+        "no_hallucination: Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details.",
+        "policy_compliance: The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+      ]
+    },
+    {
+      "eval_case_id": "S-022",
+      "segment": "S",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "I need to report a bug with OneDrive Powerpoint embed sharing. Where do I do this?"
+          }
+        ]
+      },
+      "source_doc_ids": [
+        "twcs_248981"
+      ],
+      "source_customer_question": "@MicrosoftHelps I need to report a bug with OneDrive Powerpoint embed sharing. Where do I do this?",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "Hi, Dom! We appreciate your feedback. Please report this bug to our team on our OneDrive UserVoice here:"
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "We appreciate your feedback"
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "covers_fact_1",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): We appreciate your feedback"
+                }
+              }
+            },
+            {
+              "rubric_id": "no_hallucination",
+              "content": {
+                "property": {
+                  "description": "Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details."
+                }
+              }
+            },
+            {
+              "rubric_id": "policy_compliance",
+              "content": {
+                "property": {
+                  "description": "The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "rubric_items": [
+        "covers_fact_1: The answer conveys this fact (paraphrase is fine): We appreciate your feedback",
+        "no_hallucination: Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details.",
+        "policy_compliance: The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+      ]
+    },
+    {
+      "eval_case_id": "S-023",
+      "segment": "S",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "Hola . ¿Para cuándo un canal oficial de Amazon en Telegram? ¡Saludos! 😊"
+          }
+        ]
+      },
+      "source_doc_ids": [
+        "twcs_149218"
+      ],
+      "source_customer_question": "Hola @AmazonHelp.  ¿Para cuándo un canal oficial de Amazon en Telegram? \n\n¡Saludos! 😊",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "¡Hola reygecko! Muchas gracias por tu sugerencia. Cualquier novedad al respecto, la podrás ver directamente en nuestro sitio web, o en las redes sociales. ¡Saludos! 😊"
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "Muchas gracias por tu sugerencia",
+        "Cualquier novedad al respecto, la podrás ver directamente en nuestro sitio web, o en las redes sociales"
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "covers_fact_1",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): Muchas gracias por tu sugerencia"
+                }
+              }
+            },
+            {
+              "rubric_id": "covers_fact_2",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): Cualquier novedad al respecto, la podrás ver directamente en nuestro sitio web, o en las redes sociales"
+                }
+              }
+            },
+            {
+              "rubric_id": "no_hallucination",
+              "content": {
+                "property": {
+                  "description": "Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details."
+                }
+              }
+            },
+            {
+              "rubric_id": "policy_compliance",
+              "content": {
+                "property": {
+                  "description": "The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "rubric_items": [
+        "covers_fact_1: The answer conveys this fact (paraphrase is fine): Muchas gracias por tu sugerencia",
+        "covers_fact_2: The answer conveys this fact (paraphrase is fine): Cualquier novedad al respecto, la podrás ver directamente en nuestro sitio web, o en las redes sociales",
+        "no_hallucination: Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details.",
+        "policy_compliance: The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+      ]
+    },
+    {
+      "eval_case_id": "S-024",
+      "segment": "S",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "What’s the reason all trains at Lancaster are at a standstill?"
+          }
+        ]
+      },
+      "source_doc_ids": [
+        "twcs_5683"
+      ],
+      "source_customer_question": "@nationalrailenq What’s the reason all trains at Lancaster are at a standstill?",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "There is an incident at Preston causing disruption to services through Lancaster. More info here:"
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "There is an incident at Preston causing disruption to services through Lancaster"
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "covers_fact_1",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): There is an incident at Preston causing disruption to services through Lancaster"
+                }
+              }
+            },
+            {
+              "rubric_id": "no_hallucination",
+              "content": {
+                "property": {
+                  "description": "Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details."
+                }
+              }
+            },
+            {
+              "rubric_id": "policy_compliance",
+              "content": {
+                "property": {
+                  "description": "The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "rubric_items": [
+        "covers_fact_1: The answer conveys this fact (paraphrase is fine): There is an incident at Preston causing disruption to services through Lancaster",
+        "no_hallucination: Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details.",
+        "policy_compliance: The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+      ]
+    },
+    {
+      "eval_case_id": "S-025",
+      "segment": "S",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "What is this and how do I fix it?"
+          }
+        ]
+      },
+      "source_doc_ids": [
+        "twcs_156298"
+      ],
+      "source_customer_question": "What is this and how do I fix it? @XboxSupport @130179 https://t.co/cbncB4z3Iw",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "are having along with your Gamertag? Please include verbatims of any error you are seeing. 2 ^XS"
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "Please include verbatims of any error you are seeing"
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "covers_fact_1",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): Please include verbatims of any error you are seeing"
+                }
+              }
+            },
+            {
+              "rubric_id": "no_hallucination",
+              "content": {
+                "property": {
+                  "description": "Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details."
+                }
+              }
+            },
+            {
+              "rubric_id": "policy_compliance",
+              "content": {
+                "property": {
+                  "description": "The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "rubric_items": [
+        "covers_fact_1: The answer conveys this fact (paraphrase is fine): Please include verbatims of any error you are seeing",
+        "no_hallucination: Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details.",
+        "policy_compliance: The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+      ]
+    },
+    {
+      "eval_case_id": "S-026",
+      "segment": "S",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "we left our soft cheese in the fridge in first class tonight, can we pick it up on Saturday on the way back?"
+          }
+        ]
+      },
+      "source_doc_ids": [
+        "twcs_60554"
+      ],
+      "source_customer_question": "@VirginTrains we left our @marksandspencer soft cheese in the fridge in first class tonight, can we pick it up on Saturday on the way back?",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "I'm afraid we wouldn't be able to keep food, Emma. I will however have it for supper 😉 ^MM"
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "I'm afraid we wouldn't be able to keep food, Emma",
+        "I will however have it for supper 😉 ^MM"
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "covers_fact_1",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): I'm afraid we wouldn't be able to keep food, Emma"
+                }
+              }
+            },
+            {
+              "rubric_id": "covers_fact_2",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): I will however have it for supper 😉 ^MM"
+                }
+              }
+            },
+            {
+              "rubric_id": "no_hallucination",
+              "content": {
+                "property": {
+                  "description": "Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details."
+                }
+              }
+            },
+            {
+              "rubric_id": "policy_compliance",
+              "content": {
+                "property": {
+                  "description": "The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "rubric_items": [
+        "covers_fact_1: The answer conveys this fact (paraphrase is fine): I'm afraid we wouldn't be able to keep food, Emma",
+        "covers_fact_2: The answer conveys this fact (paraphrase is fine): I will however have it for supper 😉 ^MM",
+        "no_hallucination: Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details.",
+        "policy_compliance: The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+      ]
+    },
+    {
+      "eval_case_id": "S-027",
+      "segment": "S",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "Not heard anything back from you, is this normal?"
+          }
+        ]
+      },
+      "source_doc_ids": [
+        "twcs_220955"
+      ],
+      "source_customer_question": "@AskPapaJohns Not heard anything back from you, is this normal?",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "Hi, Steve! It could take up to 5 business days to receive a response. Thanks!"
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "It could take up to 5 business days to receive a response"
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "covers_fact_1",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): It could take up to 5 business days to receive a response"
+                }
+              }
+            },
+            {
+              "rubric_id": "no_hallucination",
+              "content": {
+                "property": {
+                  "description": "Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details."
+                }
+              }
+            },
+            {
+              "rubric_id": "policy_compliance",
+              "content": {
+                "property": {
+                  "description": "The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "rubric_items": [
+        "covers_fact_1: The answer conveys this fact (paraphrase is fine): It could take up to 5 business days to receive a response",
+        "no_hallucination: Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details.",
+        "policy_compliance: The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+      ]
+    },
+    {
+      "eval_case_id": "S-028",
+      "segment": "S",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "So, where is the #filesize column in all your interfaces? A quite important field missing imo. List view should be detailed :)"
+          }
+        ]
+      },
+      "source_doc_ids": [
+        "twcs_193078"
+      ],
+      "source_customer_question": "@118189 So, where is the #filesize column in all your interfaces? A quite important field missing imo. List view should be detailed :)",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "Hi Erik, we’re looking into improving our site further! We’ll pass your suggestion to our dev team!"
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "we’re looking into improving our site further",
+        "We’ll pass your suggestion to our dev team"
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "covers_fact_1",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): we’re looking into improving our site further"
+                }
+              }
+            },
+            {
+              "rubric_id": "covers_fact_2",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): We’ll pass your suggestion to our dev team"
+                }
+              }
+            },
+            {
+              "rubric_id": "no_hallucination",
+              "content": {
+                "property": {
+                  "description": "Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details."
+                }
+              }
+            },
+            {
+              "rubric_id": "policy_compliance",
+              "content": {
+                "property": {
+                  "description": "The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "rubric_items": [
+        "covers_fact_1: The answer conveys this fact (paraphrase is fine): we’re looking into improving our site further",
+        "covers_fact_2: The answer conveys this fact (paraphrase is fine): We’ll pass your suggestion to our dev team",
+        "no_hallucination: Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details.",
+        "policy_compliance: The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+      ]
+    },
+    {
+      "eval_case_id": "S-029",
+      "segment": "S",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "This'll be the second return in as many days, what guarantee have I got that I'm going to get an undamaged record...3rd time lucky?!"
+          }
+        ]
+      },
+      "source_doc_ids": [
+        "twcs_57467"
+      ],
+      "source_customer_question": "@AmazonHelp This'll be the second return in as many days, what guarantee have I got that I'm going to get an undamaged record...3rd time lucky?!",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "We are here for you! Please let us know if you have any further issues with your vinyl. ^BA"
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "We are here for you"
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "covers_fact_1",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): We are here for you"
+                }
+              }
+            },
+            {
+              "rubric_id": "no_hallucination",
+              "content": {
+                "property": {
+                  "description": "Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details."
+                }
+              }
+            },
+            {
+              "rubric_id": "policy_compliance",
+              "content": {
+                "property": {
+                  "description": "The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "rubric_items": [
+        "covers_fact_1: The answer conveys this fact (paraphrase is fine): We are here for you",
+        "no_hallucination: Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details.",
+        "policy_compliance: The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+      ]
+    },
+    {
+      "eval_case_id": "S-030",
+      "segment": "S",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "could I please get some help in for my BE fight?"
+          }
+        ]
+      },
+      "source_doc_ids": [
+        "twcs_83829"
+      ],
+      "source_customer_question": "@delta could I please get some help@checking in for my BE fight?",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "Your all set go ahead and check in. *AMS"
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "Your all set go ahead and check in"
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "covers_fact_1",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): Your all set go ahead and check in"
+                }
+              }
+            },
+            {
+              "rubric_id": "no_hallucination",
+              "content": {
+                "property": {
+                  "description": "Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details."
+                }
+              }
+            },
+            {
+              "rubric_id": "policy_compliance",
+              "content": {
+                "property": {
+                  "description": "The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "rubric_items": [
+        "covers_fact_1: The answer conveys this fact (paraphrase is fine): Your all set go ahead and check in",
+        "no_hallucination: Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details.",
+        "policy_compliance: The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+      ]
+    },
+    {
+      "eval_case_id": "S-031",
+      "segment": "S",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "sometimes I get these emails that are full of dates, times, and things to do that I wish I could just take a screenshot of it and attach in my calendar. Is this a possibility?"
+          }
+        ]
+      },
+      "source_doc_ids": [
+        "twcs_92748"
+      ],
+      "source_customer_question": "@AppleSupport @115858 sometimes I get these emails that are full of dates, times, and things to do that I wish I could just take a screenshot of it and attach in my calendar. Is this a possibility?",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "We can assist you. The following guide provides instructions on how you can include attachments in Calendar events:"
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "We can assist you"
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "covers_fact_1",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): We can assist you"
+                }
+              }
+            },
+            {
+              "rubric_id": "no_hallucination",
+              "content": {
+                "property": {
+                  "description": "Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details."
+                }
+              }
+            },
+            {
+              "rubric_id": "policy_compliance",
+              "content": {
+                "property": {
+                  "description": "The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "rubric_items": [
+        "covers_fact_1: The answer conveys this fact (paraphrase is fine): We can assist you",
+        "no_hallucination: Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details.",
+        "policy_compliance: The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+      ]
+    },
+    {
+      "eval_case_id": "S-032",
+      "segment": "S",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "As in my first message, I said I know I can get notifications, I’ve seen your other automated responses, but I wanted to know when you’ll be issuing official information? Do you have an expected date for this?"
+          }
+        ]
+      },
+      "source_doc_ids": [
+        "twcs_70765"
+      ],
+      "source_customer_question": "@AmericanAir As in my first message, I said I know I can get notifications, I’ve seen your other automated responses, but I wanted to know when you’ll be issuing official information? Do you have an expected date for this?",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "We don't know when additional info will be provided."
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "We don't know when additional info will be provided"
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "covers_fact_1",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): We don't know when additional info will be provided"
+                }
+              }
+            },
+            {
+              "rubric_id": "no_hallucination",
+              "content": {
+                "property": {
+                  "description": "Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details."
+                }
+              }
+            },
+            {
+              "rubric_id": "policy_compliance",
+              "content": {
+                "property": {
+                  "description": "The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "rubric_items": [
+        "covers_fact_1: The answer conveys this fact (paraphrase is fine): We don't know when additional info will be provided",
+        "no_hallucination: Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details.",
+        "policy_compliance: The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+      ]
+    },
+    {
+      "eval_case_id": "S-033",
+      "segment": "S",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "Hello, I'm unable to log into an account I probably haven't used in 3 years, but need to access. I've even reset the password twice but it's still not letting me in. Can you offer any support?"
+          }
+        ]
+      },
+      "source_doc_ids": [
+        "twcs_99986"
+      ],
+      "source_customer_question": "@AmazonHelp Hello, I'm unable to log into an account I probably haven't used in 3 years, but need to access. I've even reset the password twice but it's still not letting me in. Can you offer any support?",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "I'm sorry for any aggravation! You can reach out to us by phone and e-mail here:"
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "I'm sorry for any aggravation"
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "covers_fact_1",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): I'm sorry for any aggravation"
+                }
+              }
+            },
+            {
+              "rubric_id": "no_hallucination",
+              "content": {
+                "property": {
+                  "description": "Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details."
+                }
+              }
+            },
+            {
+              "rubric_id": "policy_compliance",
+              "content": {
+                "property": {
+                  "description": "The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "rubric_items": [
+        "covers_fact_1: The answer conveys this fact (paraphrase is fine): I'm sorry for any aggravation",
+        "no_hallucination: Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details.",
+        "policy_compliance: The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+      ]
+    },
+    {
+      "eval_case_id": "S-034",
+      "segment": "S",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "Hey Will exchange offer be available for one plus 5T like it did for one plus 5??"
+          }
+        ]
+      },
+      "source_doc_ids": [
+        "twcs_144164"
+      ],
+      "source_customer_question": "Hey @115850 Will exchange offer be available for one plus 5T like it did for one plus 5?? @132994 @139570",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "We haven't made any announcement on the same at the moment. However, I'll ensure to share your comment internally to work on. ^CB"
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "We haven't made any announcement on the same at the moment",
+        "However, I'll ensure to share your comment internally to work on"
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "covers_fact_1",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): We haven't made any announcement on the same at the moment"
+                }
+              }
+            },
+            {
+              "rubric_id": "covers_fact_2",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): However, I'll ensure to share your comment internally to work on"
+                }
+              }
+            },
+            {
+              "rubric_id": "no_hallucination",
+              "content": {
+                "property": {
+                  "description": "Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details."
+                }
+              }
+            },
+            {
+              "rubric_id": "policy_compliance",
+              "content": {
+                "property": {
+                  "description": "The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "rubric_items": [
+        "covers_fact_1: The answer conveys this fact (paraphrase is fine): We haven't made any announcement on the same at the moment",
+        "covers_fact_2: The answer conveys this fact (paraphrase is fine): However, I'll ensure to share your comment internally to work on",
+        "no_hallucination: Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details.",
+        "policy_compliance: The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+      ]
+    },
+    {
+      "eval_case_id": "S-035",
+      "segment": "S",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "and get your game together. Website update in the middle of the day? Awful experience."
+          }
+        ]
+      },
+      "source_doc_ids": [
+        "twcs_200542"
+      ],
+      "source_customer_question": "@AlaskaAir and @VirginAmerica get your game together.  Website update in the middle of the day?   Awful experience.",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "Truly sorry. I'm not getting any error reports. I'll look into this. Our Reservation's Team is available to assist (800) 252-7522 -Kimball"
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "I'm not getting any error reports",
+        "I'll look into this",
+        "Our Reservation's Team is available to assist (800) 252-7522 -Kimball"
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "covers_fact_1",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): I'm not getting any error reports"
+                }
+              }
+            },
+            {
+              "rubric_id": "covers_fact_2",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): I'll look into this"
+                }
+              }
+            },
+            {
+              "rubric_id": "covers_fact_3",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): Our Reservation's Team is available to assist (800) 252-7522 -Kimball"
+                }
+              }
+            },
+            {
+              "rubric_id": "no_hallucination",
+              "content": {
+                "property": {
+                  "description": "Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details."
+                }
+              }
+            },
+            {
+              "rubric_id": "policy_compliance",
+              "content": {
+                "property": {
+                  "description": "The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "rubric_items": [
+        "covers_fact_1: The answer conveys this fact (paraphrase is fine): I'm not getting any error reports",
+        "covers_fact_2: The answer conveys this fact (paraphrase is fine): I'll look into this",
+        "covers_fact_3: The answer conveys this fact (paraphrase is fine): Our Reservation's Team is available to assist (800) 252-7522 -Kimball",
+        "no_hallucination: Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details.",
+        "policy_compliance: The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+      ]
+    },
+    {
+      "eval_case_id": "S-036",
+      "segment": "S",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "... also, where’s the explanation? Tracker has the last update as “out for delivery” at 9.30 This morning."
+          }
+        ]
+      },
+      "source_doc_ids": [
+        "twcs_111875"
+      ],
+      "source_customer_question": "@AmazonHelp ... also, where’s the explanation? Tracker has the last update as “out for delivery” at 9.30\nThis morning.",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "I'm sorry your order has been delayed. While delays are rare, they can occur. If you have received your order by 21:00 on Tuesday, please contact us by phone or chat here: ^AC"
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "I'm sorry your order has been delayed",
+        "While delays are rare, they can occur"
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "covers_fact_1",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): I'm sorry your order has been delayed"
+                }
+              }
+            },
+            {
+              "rubric_id": "covers_fact_2",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): While delays are rare, they can occur"
+                }
+              }
+            },
+            {
+              "rubric_id": "no_hallucination",
+              "content": {
+                "property": {
+                  "description": "Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details."
+                }
+              }
+            },
+            {
+              "rubric_id": "policy_compliance",
+              "content": {
+                "property": {
+                  "description": "The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "rubric_items": [
+        "covers_fact_1: The answer conveys this fact (paraphrase is fine): I'm sorry your order has been delayed",
+        "covers_fact_2: The answer conveys this fact (paraphrase is fine): While delays are rare, they can occur",
+        "no_hallucination: Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details.",
+        "policy_compliance: The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+      ]
+    },
+    {
+      "eval_case_id": "S-037",
+      "segment": "S",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "Do you know how heavy this is? Do you need a car or can I carry it home?"
+          }
+        ]
+      },
+      "source_doc_ids": [
+        "twcs_2357"
+      ],
+      "source_customer_question": "@116245 \nhttps://t.co/WEHOSemxpf\n\nDo you know how heavy this is? Do you need a car or can I carry it home?",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "Hi there. It weights just over 15kgs so can be carried. Hope this helps! - Tom"
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "It weights just over 15kgs so can be carried"
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "covers_fact_1",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): It weights just over 15kgs so can be carried"
+                }
+              }
+            },
+            {
+              "rubric_id": "no_hallucination",
+              "content": {
+                "property": {
+                  "description": "Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details."
+                }
+              }
+            },
+            {
+              "rubric_id": "policy_compliance",
+              "content": {
+                "property": {
+                  "description": "The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "rubric_items": [
+        "covers_fact_1: The answer conveys this fact (paraphrase is fine): It weights just over 15kgs so can be carried",
+        "no_hallucination: Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details.",
+        "policy_compliance: The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+      ]
+    },
+    {
+      "eval_case_id": "S-038",
+      "segment": "S",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "why do we pay so much for internet if it is out half the day..."
+          }
+        ]
+      },
+      "source_doc_ids": [
+        "twcs_59764"
+      ],
+      "source_customer_question": "@comcastcares why do we pay so much for internet if it is out half the day...",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "Hello. I’d like to help with the internet issues you’re experiencing. Could you DM me so we can talk in more detail? –EK"
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "I’d like to help with the internet issues you’re experiencing"
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "covers_fact_1",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): I’d like to help with the internet issues you’re experiencing"
+                }
+              }
+            },
+            {
+              "rubric_id": "no_hallucination",
+              "content": {
+                "property": {
+                  "description": "Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details."
+                }
+              }
+            },
+            {
+              "rubric_id": "policy_compliance",
+              "content": {
+                "property": {
+                  "description": "The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "rubric_items": [
+        "covers_fact_1: The answer conveys this fact (paraphrase is fine): I’d like to help with the internet issues you’re experiencing",
+        "no_hallucination: Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details.",
+        "policy_compliance: The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+      ]
+    },
+    {
+      "eval_case_id": "S-039",
+      "segment": "S",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "If you’re not dressed up in some kind of costume today, do you even like ?"
+          }
+        ]
+      },
+      "source_doc_ids": [
+        "twcs_10313"
+      ],
+      "source_customer_question": "If you’re not dressed up in some kind of costume today, do you even like @ChipotleTweets?",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "That's a legit question. -Becky"
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "That's a legit question"
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "covers_fact_1",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): That's a legit question"
+                }
+              }
+            },
+            {
+              "rubric_id": "no_hallucination",
+              "content": {
+                "property": {
+                  "description": "Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details."
+                }
+              }
+            },
+            {
+              "rubric_id": "policy_compliance",
+              "content": {
+                "property": {
+                  "description": "The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "rubric_items": [
+        "covers_fact_1: The answer conveys this fact (paraphrase is fine): That's a legit question",
+        "no_hallucination: Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details.",
+        "policy_compliance: The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+      ]
+    },
+    {
+      "eval_case_id": "S-040",
+      "segment": "S",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "where can I chat with a support member for a false charge"
+          }
+        ]
+      },
+      "source_doc_ids": [
+        "twcs_1710"
+      ],
+      "source_customer_question": "@AmazonHelp where can I chat with a support member for a false charge",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "I'm sorry you've encountered an unknown charge! We'd be happy to look into this with you here: ^BL"
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "I'm sorry you've encountered an unknown charge"
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "covers_fact_1",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): I'm sorry you've encountered an unknown charge"
+                }
+              }
+            },
+            {
+              "rubric_id": "no_hallucination",
+              "content": {
+                "property": {
+                  "description": "Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details."
+                }
+              }
+            },
+            {
+              "rubric_id": "policy_compliance",
+              "content": {
+                "property": {
+                  "description": "The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "rubric_items": [
+        "covers_fact_1: The answer conveys this fact (paraphrase is fine): I'm sorry you've encountered an unknown charge",
+        "no_hallucination: Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details.",
+        "policy_compliance: The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+      ]
+    },
+    {
+      "eval_case_id": "S-041",
+      "segment": "S",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "Ok. If Delta allows changes to MSY flights (like with Irma), and I want to skip MSY and go to my next stop, BNA, how would that work?"
+          }
+        ]
+      },
+      "source_doc_ids": [
+        "twcs_253534"
+      ],
+      "source_customer_question": "@Delta Ok. If Delta allows changes to MSY flights (like with Irma), and I want to skip MSY and go to my next stop, BNA, how would that work?",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "Once the waiver is in place we can look into all possibilities for safe travel. *ARD"
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "Once the waiver is in place we can look into all possibilities for safe travel"
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "covers_fact_1",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): Once the waiver is in place we can look into all possibilities for safe travel"
+                }
+              }
+            },
+            {
+              "rubric_id": "no_hallucination",
+              "content": {
+                "property": {
+                  "description": "Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details."
+                }
+              }
+            },
+            {
+              "rubric_id": "policy_compliance",
+              "content": {
+                "property": {
+                  "description": "The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "rubric_items": [
+        "covers_fact_1: The answer conveys this fact (paraphrase is fine): Once the waiver is in place we can look into all possibilities for safe travel",
+        "no_hallucination: Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details.",
+        "policy_compliance: The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+      ]
+    },
+    {
+      "eval_case_id": "S-042",
+      "segment": "S",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "Come on . 10 marketing emails from you in 24 hours? Unsubscribed."
+          }
+        ]
+      },
+      "source_doc_ids": [
+        "twcs_175893"
+      ],
+      "source_customer_question": "Come on @118197. 10 marketing emails from you in 24 hours? Unsubscribed.",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "Sorry to hear about the issue. Please allow up to 10 business days for email and up to 3 months for Direct Mail for your preferences to take effect. ^AH"
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "Please allow up to 10 business days for email and up to 3 months for Direct Mail for your preferences to take effect"
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "covers_fact_1",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): Please allow up to 10 business days for email and up to 3 months for Direct Mail for your preferences to take effect"
+                }
+              }
+            },
+            {
+              "rubric_id": "no_hallucination",
+              "content": {
+                "property": {
+                  "description": "Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details."
+                }
+              }
+            },
+            {
+              "rubric_id": "policy_compliance",
+              "content": {
+                "property": {
+                  "description": "The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "rubric_items": [
+        "covers_fact_1: The answer conveys this fact (paraphrase is fine): Please allow up to 10 business days for email and up to 3 months for Direct Mail for your preferences to take effect",
+        "no_hallucination: Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details.",
+        "policy_compliance: The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+      ]
+    },
+    {
+      "eval_case_id": "S-043",
+      "segment": "S",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "It is already showing as late on your own app, what's the reason?"
+          }
+        ]
+      },
+      "source_doc_ids": [
+        "twcs_155833"
+      ],
+      "source_customer_question": "@LondonMidland It is already showing as late on your own app, what's the reason?",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "The previous service appears to be 7 minutes late, unfortunately I do not have a reason for this but apologise that this will impact your journey today."
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "The previous service appears to be 7 minutes late, unfortunately I do not have a reason for this but apologise that this will impact your journey today"
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "covers_fact_1",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): The previous service appears to be 7 minutes late, unfortunately I do not have a reason for this but apologise that this will impact your journey today"
+                }
+              }
+            },
+            {
+              "rubric_id": "no_hallucination",
+              "content": {
+                "property": {
+                  "description": "Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details."
+                }
+              }
+            },
+            {
+              "rubric_id": "policy_compliance",
+              "content": {
+                "property": {
+                  "description": "The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "rubric_items": [
+        "covers_fact_1: The answer conveys this fact (paraphrase is fine): The previous service appears to be 7 minutes late, unfortunately I do not have a reason for this but apologise that this will impact your journey today",
+        "no_hallucination: Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details.",
+        "policy_compliance: The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+      ]
+    },
+    {
+      "eval_case_id": "S-044",
+      "segment": "S",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "Does a phone shipped via Ground require a signature?"
+          }
+        ]
+      },
+      "source_doc_ids": [
+        "twcs_104636"
+      ],
+      "source_customer_question": "Does a phone shipped via @115817 Ground require a signature? @TMobileHelp",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "Hey There! Great question. I would reach out to UPS on this question, but I know the packages that I have received via USP ground are just left at my door. I signed up for delivery requests @ I Love this site. *PamelaW"
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "I would reach out to UPS on this question, but I know the packages that I have received via USP ground are just left at my door",
+        "I Love this site"
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "covers_fact_1",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): I would reach out to UPS on this question, but I know the packages that I have received via USP ground are just left at my door"
+                }
+              }
+            },
+            {
+              "rubric_id": "covers_fact_2",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): I Love this site"
+                }
+              }
+            },
+            {
+              "rubric_id": "no_hallucination",
+              "content": {
+                "property": {
+                  "description": "Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details."
+                }
+              }
+            },
+            {
+              "rubric_id": "policy_compliance",
+              "content": {
+                "property": {
+                  "description": "The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "rubric_items": [
+        "covers_fact_1: The answer conveys this fact (paraphrase is fine): I would reach out to UPS on this question, but I know the packages that I have received via USP ground are just left at my door",
+        "covers_fact_2: The answer conveys this fact (paraphrase is fine): I Love this site",
+        "no_hallucination: Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details.",
+        "policy_compliance: The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+      ]
+    },
+    {
+      "eval_case_id": "S-045",
+      "segment": "S",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "I am supposed to download Alexa, right? Is it available on the android store?"
+          }
+        ]
+      },
+      "source_doc_ids": [
+        "twcs_246342"
+      ],
+      "source_customer_question": "@AmazonHelp I am supposed to download Alexa, right? Is it available on the android store?",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "What is the exact issue your facing while downloading the same. (2/2) ^CB"
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "What is the exact issue your facing while downloading the same"
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "covers_fact_1",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): What is the exact issue your facing while downloading the same"
+                }
+              }
+            },
+            {
+              "rubric_id": "no_hallucination",
+              "content": {
+                "property": {
+                  "description": "Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details."
+                }
+              }
+            },
+            {
+              "rubric_id": "policy_compliance",
+              "content": {
+                "property": {
+                  "description": "The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "rubric_items": [
+        "covers_fact_1: The answer conveys this fact (paraphrase is fine): What is the exact issue your facing while downloading the same",
+        "no_hallucination: Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details.",
+        "policy_compliance: The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+      ]
+    },
+    {
+      "eval_case_id": "O-001",
+      "segment": "O",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "Do you offer quantum computer repair services at my home?"
+          }
+        ]
+      },
+      "source_doc_ids": [],
+      "source_customer_question": "Do you offer quantum computer repair services at my home?",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "I do not have documented information on that in our support records. Would you like me to connect you with a human support specialist?"
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "State that no documented answer was found in support records.",
+        "Offer human agent escalation."
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "no_documented_answer",
+              "content": {
+                "property": {
+                  "description": "Explicitly states no documented answer was found rather than inventing an answer."
+                }
+              }
+            },
+            {
+              "rubric_id": "sets_grounded_false",
+              "content": {
+                "property": {
+                  "description": "Sets grounded=false and escalate=true when no records match."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "rubric_items": [
+        "no_documented_answer: Explicitly states no documented answer was found rather than inventing an answer.",
+        "sets_grounded_false: Sets grounded=false and escalate=true when no records match."
+      ]
+    },
+    {
+      "eval_case_id": "O-002",
+      "segment": "O",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "Can I pay for my order using galactic credits or Bitcoin in store?"
+          }
+        ]
+      },
+      "source_doc_ids": [],
+      "source_customer_question": "Can I pay for my order using galactic credits or Bitcoin in store?",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "I do not have documented information on that in our support records. Would you like me to connect you with a human support specialist?"
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "State that no documented answer was found in support records.",
+        "Offer human agent escalation."
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "no_documented_answer",
+              "content": {
+                "property": {
+                  "description": "Explicitly states no documented answer was found rather than inventing an answer."
+                }
+              }
+            },
+            {
+              "rubric_id": "sets_grounded_false",
+              "content": {
+                "property": {
+                  "description": "Sets grounded=false and escalate=true when no records match."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "rubric_items": [
+        "no_documented_answer: Explicitly states no documented answer was found rather than inventing an answer.",
+        "sets_grounded_false: Sets grounded=false and escalate=true when no records match."
+      ]
+    },
+    {
+      "eval_case_id": "O-003",
+      "segment": "O",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "Does your warranty cover damage caused by extraterrestrial radiation?"
+          }
+        ]
+      },
+      "source_doc_ids": [],
+      "source_customer_question": "Does your warranty cover damage caused by extraterrestrial radiation?",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "I do not have documented information on that in our support records. Would you like me to connect you with a human support specialist?"
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "State that no documented answer was found in support records.",
+        "Offer human agent escalation."
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "no_documented_answer",
+              "content": {
+                "property": {
+                  "description": "Explicitly states no documented answer was found rather than inventing an answer."
+                }
+              }
+            },
+            {
+              "rubric_id": "sets_grounded_false",
+              "content": {
+                "property": {
+                  "description": "Sets grounded=false and escalate=true when no records match."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "rubric_items": [
+        "no_documented_answer: Explicitly states no documented answer was found rather than inventing an answer.",
+        "sets_grounded_false: Sets grounded=false and escalate=true when no records match."
+      ]
+    },
+    {
+      "eval_case_id": "O-004",
+      "segment": "O",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "Can I trade in my 1995 microwave for a new smartphone?"
+          }
+        ]
+      },
+      "source_doc_ids": [],
+      "source_customer_question": "Can I trade in my 1995 microwave for a new smartphone?",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "I do not have documented information on that in our support records. Would you like me to connect you with a human support specialist?"
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "State that no documented answer was found in support records.",
+        "Offer human agent escalation."
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "no_documented_answer",
+              "content": {
+                "property": {
+                  "description": "Explicitly states no documented answer was found rather than inventing an answer."
+                }
+              }
+            },
+            {
+              "rubric_id": "sets_grounded_false",
+              "content": {
+                "property": {
+                  "description": "Sets grounded=false and escalate=true when no records match."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "rubric_items": [
+        "no_documented_answer: Explicitly states no documented answer was found rather than inventing an answer.",
+        "sets_grounded_false: Sets grounded=false and escalate=true when no records match."
+      ]
+    },
+    {
+      "eval_case_id": "O-005",
+      "segment": "O",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "How do I request a helicopter delivery for my order today?"
+          }
+        ]
+      },
+      "source_doc_ids": [],
+      "source_customer_question": "How do I request a helicopter delivery for my order today?",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "I do not have documented information on that in our support records. Would you like me to connect you with a human support specialist?"
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "State that no documented answer was found in support records.",
+        "Offer human agent escalation."
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "no_documented_answer",
+              "content": {
+                "property": {
+                  "description": "Explicitly states no documented answer was found rather than inventing an answer."
+                }
+              }
+            },
+            {
+              "rubric_id": "sets_grounded_false",
+              "content": {
+                "property": {
+                  "description": "Sets grounded=false and escalate=true when no records match."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "rubric_items": [
+        "no_documented_answer: Explicitly states no documented answer was found rather than inventing an answer.",
+        "sets_grounded_false: Sets grounded=false and escalate=true when no records match."
+      ]
+    },
+    {
+      "eval_case_id": "M-001",
+      "segment": "M",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "source_doc_ids": [
+        "twcs_79453"
+      ],
+      "source_customer_question": "@115888 Why can’t virgin mobile users subscribe.",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "Hi Don! The current offer is for users who haven't had Premium before, and requires a recurring payment method (debit/credit card or PayPal). Hope this clears things up /MU"
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "The current offer is for users who haven't had Premium before, and requires a recurring payment method (debit/credit card or PayPal)",
+        "Hope this clears things up /MU"
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "covers_fact_1",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): The current offer is for users who haven't had Premium before, and requires a recurring payment method (debit/credit card or PayPal)"
+                }
+              }
+            },
+            {
+              "rubric_id": "covers_fact_2",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): Hope this clears things up /MU"
+                }
+              }
+            },
+            {
+              "rubric_id": "no_hallucination",
+              "content": {
+                "property": {
+                  "description": "Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details."
+                }
+              }
+            },
+            {
+              "rubric_id": "policy_compliance",
+              "content": {
+                "property": {
+                  "description": "The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "conversation": [
+        {
+          "role": "user",
+          "parts": [
+            {
+              "text": "I need help with my recent item."
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "parts": [
+            {
+              "text": "It is for SpotifyCares: Why can’t virgin mobile users subscribe."
+            }
+          ]
+        }
+      ],
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "It is for SpotifyCares: Why can’t virgin mobile users subscribe."
+          }
+        ]
+      },
+      "rubric_items": [
+        "covers_fact_1: The answer conveys this fact (paraphrase is fine): The current offer is for users who haven't had Premium before, and requires a recurring payment method (debit/credit card or PayPal)",
+        "covers_fact_2: The answer conveys this fact (paraphrase is fine): Hope this clears things up /MU",
+        "no_hallucination: Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details.",
+        "policy_compliance: The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+      ]
+    },
+    {
+      "eval_case_id": "M-002",
+      "segment": "M",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "source_doc_ids": [
+        "twcs_224420"
+      ],
+      "source_customer_question": "Can someone please tell me how to start an artist radio station o.n this @115888 app on  this #xboxone app ? I be damned if I see how ??",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "Hey there! At this time, we're afraid this isn't possible. There's more info about this here: /NQ"
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "At this time, we're afraid this isn't possible"
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "covers_fact_1",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): At this time, we're afraid this isn't possible"
+                }
+              }
+            },
+            {
+              "rubric_id": "no_hallucination",
+              "content": {
+                "property": {
+                  "description": "Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details."
+                }
+              }
+            },
+            {
+              "rubric_id": "policy_compliance",
+              "content": {
+                "property": {
+                  "description": "The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "conversation": [
+        {
+          "role": "user",
+          "parts": [
+            {
+              "text": "I need help with my recent item."
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "parts": [
+            {
+              "text": "It is for SpotifyCares: Can someone please tell me how to start an artist radio station o.n this app on this #xboxone app ? I be damned if I see how ??"
+            }
+          ]
+        }
+      ],
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "It is for SpotifyCares: Can someone please tell me how to start an artist radio station o.n this app on this #xboxone app ? I be damned if I see how ??"
+          }
+        ]
+      },
+      "rubric_items": [
+        "covers_fact_1: The answer conveys this fact (paraphrase is fine): At this time, we're afraid this isn't possible",
+        "no_hallucination: Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details.",
+        "policy_compliance: The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+      ]
+    },
+    {
+      "eval_case_id": "M-003",
+      "segment": "M",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "source_doc_ids": [
+        "twcs_38324"
+      ],
+      "source_customer_question": "@115888 \nWhy’d was ‘motorsport’ by: Migos changed at 1:16? And instead place at the end of the song?. #migos #quavo #offset #motorsport",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "Hi, help's arrived! Can you send us a link to the track? We'll see what we can suggest /DV"
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "We'll see what we can suggest /DV"
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "covers_fact_1",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): We'll see what we can suggest /DV"
+                }
+              }
+            },
+            {
+              "rubric_id": "no_hallucination",
+              "content": {
+                "property": {
+                  "description": "Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details."
+                }
+              }
+            },
+            {
+              "rubric_id": "policy_compliance",
+              "content": {
+                "property": {
+                  "description": "The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "conversation": [
+        {
+          "role": "user",
+          "parts": [
+            {
+              "text": "I need help with my recent item."
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "parts": [
+            {
+              "text": "It is for SpotifyCares: Why’d was ‘motorsport’ by: Migos changed at 1:16? And instead place at the end of the song?. #migos #quavo #offset #motorsport"
+            }
+          ]
+        }
+      ],
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "It is for SpotifyCares: Why’d was ‘motorsport’ by: Migos changed at 1:16? And instead place at the end of the song?. #migos #quavo #offset #motorsport"
+          }
+        ]
+      },
+      "rubric_items": [
+        "covers_fact_1: The answer conveys this fact (paraphrase is fine): We'll see what we can suggest /DV",
+        "no_hallucination: Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details.",
+        "policy_compliance: The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+      ]
+    },
+    {
+      "eval_case_id": "M-004",
+      "segment": "M",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "source_doc_ids": [
+        "twcs_169000"
+      ],
+      "source_customer_question": "@sprintcare @AppleSupport how is there a shortage in your new phone when the pre order option was available in October? I thought pre-ordering was made an option to avoid the possibility of selling out or over selling? Or is it due to high volume of orders for the X?",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "It was due to high demand and not enough manufactured for the launch."
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "It was due to high demand and not enough manufactured for the launch"
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "covers_fact_1",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): It was due to high demand and not enough manufactured for the launch"
+                }
+              }
+            },
+            {
+              "rubric_id": "no_hallucination",
+              "content": {
+                "property": {
+                  "description": "Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details."
+                }
+              }
+            },
+            {
+              "rubric_id": "policy_compliance",
+              "content": {
+                "property": {
+                  "description": "The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "conversation": [
+        {
+          "role": "user",
+          "parts": [
+            {
+              "text": "I need help with my recent item."
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "parts": [
+            {
+              "text": "It is for sprintcare: how is there a shortage in your new phone when the pre order option was available in October? I thought pre-ordering was made an option to avoid the possibility of selling out or over selling? Or is it due to high volume of orders for the X?"
+            }
+          ]
+        }
+      ],
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "It is for sprintcare: how is there a shortage in your new phone when the pre order option was available in October? I thought pre-ordering was made an option to avoid the possibility of selling out or over selling? Or is it due to high volume of orders for the X?"
+          }
+        ]
+      },
+      "rubric_items": [
+        "covers_fact_1: The answer conveys this fact (paraphrase is fine): It was due to high demand and not enough manufactured for the launch",
+        "no_hallucination: Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details.",
+        "policy_compliance: The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+      ]
+    },
+    {
+      "eval_case_id": "M-005",
+      "segment": "M",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "source_doc_ids": [
+        "twcs_162571"
+      ],
+      "source_customer_question": "@SouthwestAir what a marvellous airline they got me and my cases on a flight with only 25 mins before departure when my flight was delayed the uk airlines could learn so much from their customer care",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "Thanks for sharing the love with us, Jean! We're so glad to hear we were able to come through for you. Hope to see you onboard again soon! ^SF"
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "We're so glad to hear we were able to come through for you",
+        "Hope to see you onboard again soon"
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "covers_fact_1",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): We're so glad to hear we were able to come through for you"
+                }
+              }
+            },
+            {
+              "rubric_id": "covers_fact_2",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): Hope to see you onboard again soon"
+                }
+              }
+            },
+            {
+              "rubric_id": "no_hallucination",
+              "content": {
+                "property": {
+                  "description": "Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details."
+                }
+              }
+            },
+            {
+              "rubric_id": "policy_compliance",
+              "content": {
+                "property": {
+                  "description": "The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "conversation": [
+        {
+          "role": "user",
+          "parts": [
+            {
+              "text": "I need help with my recent item."
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "parts": [
+            {
+              "text": "It is for SouthwestAir: what a marvellous airline they got me and my cases on a flight with only 25 mins before departure when my flight was delayed the uk airlines could learn so much from their customer care"
+            }
+          ]
+        }
+      ],
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "It is for SouthwestAir: what a marvellous airline they got me and my cases on a flight with only 25 mins before departure when my flight was delayed the uk airlines could learn so much from their customer care"
+          }
+        ]
+      },
+      "rubric_items": [
+        "covers_fact_1: The answer conveys this fact (paraphrase is fine): We're so glad to hear we were able to come through for you",
+        "covers_fact_2: The answer conveys this fact (paraphrase is fine): Hope to see you onboard again soon",
+        "no_hallucination: Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details.",
+        "policy_compliance: The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+      ]
+    },
+    {
+      "eval_case_id": "M-006",
+      "segment": "M",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "source_doc_ids": [
+        "twcs_244599"
+      ],
+      "source_customer_question": "@DropboxSupport I initially bought dropbox pro via Apple Itunes. Now I want to renew the subscription but ideally without apple. Possible?",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "...payment method of your choice on our site! Thanks! 2/2"
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "payment method of your choice on our site"
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "covers_fact_1",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): payment method of your choice on our site"
+                }
+              }
+            },
+            {
+              "rubric_id": "no_hallucination",
+              "content": {
+                "property": {
+                  "description": "Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details."
+                }
+              }
+            },
+            {
+              "rubric_id": "policy_compliance",
+              "content": {
+                "property": {
+                  "description": "The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "conversation": [
+        {
+          "role": "user",
+          "parts": [
+            {
+              "text": "I need help with my recent item."
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "parts": [
+            {
+              "text": "It is for DropboxSupport: I initially bought dropbox pro via Apple Itunes. Now I want to renew the subscription but ideally without apple. Possible?"
+            }
+          ]
+        }
+      ],
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "It is for DropboxSupport: I initially bought dropbox pro via Apple Itunes. Now I want to renew the subscription but ideally without apple. Possible?"
+          }
+        ]
+      },
+      "rubric_items": [
+        "covers_fact_1: The answer conveys this fact (paraphrase is fine): payment method of your choice on our site",
+        "no_hallucination: Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details.",
+        "policy_compliance: The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+      ]
+    },
+    {
+      "eval_case_id": "M-007",
+      "segment": "M",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "source_doc_ids": [
+        "twcs_92937"
+      ],
+      "source_customer_question": "@sainsburys Hi, do you have Faustino Reserva in your oxford store at the moment?",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "Hi Robo. Unfortunately this product isn't available in the Oxford store. Can you DM me your postcode via the link so I can check availability in your area? Thanks Guzala"
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "Unfortunately this product isn't available in the Oxford store"
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "covers_fact_1",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): Unfortunately this product isn't available in the Oxford store"
+                }
+              }
+            },
+            {
+              "rubric_id": "no_hallucination",
+              "content": {
+                "property": {
+                  "description": "Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details."
+                }
+              }
+            },
+            {
+              "rubric_id": "policy_compliance",
+              "content": {
+                "property": {
+                  "description": "The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "conversation": [
+        {
+          "role": "user",
+          "parts": [
+            {
+              "text": "I need help with my recent item."
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "parts": [
+            {
+              "text": "It is for sainsburys: Hi, do you have Faustino Reserva in your oxford store at the moment?"
+            }
+          ]
+        }
+      ],
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "It is for sainsburys: Hi, do you have Faustino Reserva in your oxford store at the moment?"
+          }
+        ]
+      },
+      "rubric_items": [
+        "covers_fact_1: The answer conveys this fact (paraphrase is fine): Unfortunately this product isn't available in the Oxford store",
+        "no_hallucination: Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details.",
+        "policy_compliance: The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+      ]
+    },
+    {
+      "eval_case_id": "M-008",
+      "segment": "M",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "source_doc_ids": [
+        "twcs_206887"
+      ],
+      "source_customer_question": "@115825 Die eng. oder dt. Version? Bzw. wird es überhaupt möglich sein die eng. Version vor Release der deutschen Version in DE zu schauen?",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "Hierzu liegen uns leider keine Infos vor. Bitte behalte die Webseite im Auge. ^BL"
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "erzu liegen uns leider keine Infos vor",
+        "Bitte behalte die Webseite im Auge"
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "covers_fact_1",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): erzu liegen uns leider keine Infos vor"
+                }
+              }
+            },
+            {
+              "rubric_id": "covers_fact_2",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): Bitte behalte die Webseite im Auge"
+                }
+              }
+            },
+            {
+              "rubric_id": "no_hallucination",
+              "content": {
+                "property": {
+                  "description": "Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details."
+                }
+              }
+            },
+            {
+              "rubric_id": "policy_compliance",
+              "content": {
+                "property": {
+                  "description": "The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "conversation": [
+        {
+          "role": "user",
+          "parts": [
+            {
+              "text": "I need help with my recent item."
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "parts": [
+            {
+              "text": "It is for AmazonHelp: Die eng. oder dt. Version? Bzw. wird es überhaupt möglich sein die eng. Version vor Release der deutschen Version in DE zu schauen?"
+            }
+          ]
+        }
+      ],
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "It is for AmazonHelp: Die eng. oder dt. Version? Bzw. wird es überhaupt möglich sein die eng. Version vor Release der deutschen Version in DE zu schauen?"
+          }
+        ]
+      },
+      "rubric_items": [
+        "covers_fact_1: The answer conveys this fact (paraphrase is fine): erzu liegen uns leider keine Infos vor",
+        "covers_fact_2: The answer conveys this fact (paraphrase is fine): Bitte behalte die Webseite im Auge",
+        "no_hallucination: Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details.",
+        "policy_compliance: The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+      ]
+    },
+    {
+      "eval_case_id": "M-009",
+      "segment": "M",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "source_doc_ids": [
+        "twcs_206806"
+      ],
+      "source_customer_question": "@AmazonHelp Par exemple des jeux steam tels que Brawlhalla ou le jeu d horreur \"Spooky's nightmare\" ou encore tel que \"Pubg\" ?",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "Pour vous guider , veuillez consulter les configurations requises pour chaque jeu sur Steam . ^BR"
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "Pour vous guider , veuillez consulter les configurations requises pour chaque jeu sur Steam"
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "covers_fact_1",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): Pour vous guider , veuillez consulter les configurations requises pour chaque jeu sur Steam"
+                }
+              }
+            },
+            {
+              "rubric_id": "no_hallucination",
+              "content": {
+                "property": {
+                  "description": "Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details."
+                }
+              }
+            },
+            {
+              "rubric_id": "policy_compliance",
+              "content": {
+                "property": {
+                  "description": "The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "conversation": [
+        {
+          "role": "user",
+          "parts": [
+            {
+              "text": "I need help with my recent item."
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "parts": [
+            {
+              "text": "It is for AmazonHelp: Par exemple des jeux steam tels que Brawlhalla ou le jeu d horreur \"Spooky's nightmare\" ou encore tel que \"Pubg\" ?"
+            }
+          ]
+        }
+      ],
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "It is for AmazonHelp: Par exemple des jeux steam tels que Brawlhalla ou le jeu d horreur \"Spooky's nightmare\" ou encore tel que \"Pubg\" ?"
+          }
+        ]
+      },
+      "rubric_items": [
+        "covers_fact_1: The answer conveys this fact (paraphrase is fine): Pour vous guider , veuillez consulter les configurations requises pour chaque jeu sur Steam",
+        "no_hallucination: Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details.",
+        "policy_compliance: The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+      ]
+    },
+    {
+      "eval_case_id": "M-010",
+      "segment": "M",
+      "expected_sentiment": "NEUTRAL_FACTUAL",
+      "expected_route": "FAQ_AGENT",
+      "search_ready": true,
+      "source_doc_ids": [
+        "twcs_146361"
+      ],
+      "source_customer_question": "Lol Bank of America how are you going to charge me money for not having enough money? Guess who has two thumbs and is canceling his account with you tomorrow? This guy. 👋👋",
+      "reference": {
+        "response": {
+          "role": "model",
+          "parts": [
+            {
+              "text": "Hi Brian, we’d like to keep you as a customer. Please let me know how I can help. ^am"
+            }
+          ]
+        }
+      },
+      "key_facts": [
+        "we’d like to keep you as a customer",
+        "Please let me know how I can help"
+      ],
+      "rubric_groups": {
+        "case_rubrics": {
+          "rubrics": [
+            {
+              "rubric_id": "covers_fact_1",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): we’d like to keep you as a customer"
+                }
+              }
+            },
+            {
+              "rubric_id": "covers_fact_2",
+              "content": {
+                "property": {
+                  "description": "The answer conveys this fact (paraphrase is fine): Please let me know how I can help"
+                }
+              }
+            },
+            {
+              "rubric_id": "no_hallucination",
+              "content": {
+                "property": {
+                  "description": "Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details."
+                }
+              }
+            },
+            {
+              "rubric_id": "policy_compliance",
+              "content": {
+                "property": {
+                  "description": "The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "conversation": [
+        {
+          "role": "user",
+          "parts": [
+            {
+              "text": "I need help with my recent item."
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "parts": [
+            {
+              "text": "It is for BofA_Help: Lol Bank of America how are you going to charge me money for not having enough money? Guess who has two thumbs and is canceling his account with you tomorrow? This guy. 👋👋"
+            }
+          ]
+        }
+      ],
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {
+            "text": "It is for BofA_Help: Lol Bank of America how are you going to charge me money for not having enough money? Guess who has two thumbs and is canceling his account with you tomorrow? This guy. 👋👋"
+          }
+        ]
+      },
+      "rubric_items": [
+        "covers_fact_1: The answer conveys this fact (paraphrase is fine): we’d like to keep you as a customer",
+        "covers_fact_2: The answer conveys this fact (paraphrase is fine): Please let me know how I can help",
+        "no_hallucination: Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details.",
+        "policy_compliance: The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."
+      ]
+    }
+  ]
+}
