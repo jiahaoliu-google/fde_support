@@ -1,19 +1,22 @@
 import os
 import re
 import json
+import uuid
+import hashlib
 import logging
 import asyncio
 import certifi
 import httpx
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.responses import HTMLResponse
-from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from backend.config import settings
+from backend.caller_identity import CallerAuthError, build_caller_resolver
 from backend.circuit_breaker import CircuitBreaker, CircuitState
 from backend.model_armor import model_armor
+from agents.faq_assistant.answer_sanitizer import sanitize_answer
 from database.db import init_db, get_db
 from database.models import Ticket, Message
 
@@ -63,8 +66,34 @@ def parse_ndjson_stream(raw_text: str) -> tuple[str, list[str]]:
         try:
             data = json.loads(line)
             if "content" in data and "parts" in data["content"]:
+                event_text = ""
                 for part in data["content"]["parts"]:
-                    full_text += part.get("text", "")
+                    if part.get("thought"):
+                        continue
+                    event_text += part.get("text", "") or ""
+
+                    # Citations from FunctionTool responses (search_support_records / get_order_status)
+                    fr = part.get("function_response") or part.get("functionResponse") or {}
+                    fr_resp = fr.get("response") or {}
+                    if fr.get("name") == "search_support_records":
+                        for idx, rec in enumerate(fr_resp.get("results") or [], 1):
+                            doc_id = rec.get("doc_id") if isinstance(rec, dict) else None
+                            if doc_id:
+                                c_entry = f"Document #{idx} (ID: {doc_id})"
+                                if c_entry not in citations:
+                                    citations.append(c_entry)
+                        if fr_resp.get("query"):
+                            c_entry = f"Datastore Search: {fr_resp['query']}"
+                            if c_entry not in citations:
+                                citations.append(c_entry)
+                    elif fr.get("name") == "get_order_status" and fr_resp.get("status") == "found":
+                        oid = (fr_resp.get("order") or {}).get("order_id")
+                        if oid and f"Order Lookup: {oid}" not in citations:
+                            citations.append(f"Order Lookup: {oid}")
+
+                # Keep only the latest model text: earlier events may contain pre-tool-call text
+                if event_text.strip():
+                    full_text = event_text
             
             # Extract grounding metadata citations
             gm = data.get("grounding_metadata") or data.get("groundingMetadata") or {}
@@ -155,11 +184,14 @@ async def call_sentiment_agent(message: str) -> dict:
     headers = get_gcp_auth_headers()
     headers["Content-Type"] = "application/json"
     
+    # Fresh session per classification: classification is stateless, and a shared
+    # session would mix every customer's messages into one conversation history.
+    # The agent deletes the session when the run ends (see sentiment app_utils/services.py).
     payload = {
         "class_method": "stream_query",
         "input": {
-            "user_id": "system_user",
-            "session_id": "sentiment_session",
+            "user_id": "sentiment_classifier",
+            "session_id": f"s-{uuid.uuid4().hex}",
             "message": message
         }
     }
@@ -191,7 +223,7 @@ async def call_sentiment_agent(message: str) -> dict:
             logger.error(f"Sentiment Agent HTTP {resp.status_code}: {resp.text}")
             raise HTTPException(status_code=resp.status_code, detail=f"Sentiment Agent Runtime error: {resp.text}")
 
-async def call_faq_agent(message: str, session_id: str) -> dict:
+async def call_faq_agent(message: str, session_id: str, user_id: str = "backend_user") -> dict:
     """Sends HTTP REST request over the network to FAQ Agent on Agent Runtime."""
     if not FAQ_AGENT_URL:
         raise HTTPException(status_code=500, detail="FAQ_AGENT_URL is not configured.")
@@ -199,11 +231,13 @@ async def call_faq_agent(message: str, session_id: str) -> dict:
     headers = get_gcp_auth_headers()
     headers["Content-Type"] = "application/json"
     
+    # user_id scopes the agent's conversation memory per customer, so a leaked
+    # session_id alone cannot join another customer's conversation.
     payload = {
         "class_method": "stream_query",
         "input": {
-            "user_id": "backend_user",
-            "session_id": session_id,
+            "user_id": user_id,
+            "session_id": agent_session_id(session_id),
             "message": message
         }
     }
@@ -226,12 +260,14 @@ async def call_faq_agent(message: str, session_id: str) -> dict:
                 if grounded:
                     return {"answer": answer_text, "citations": citations, "grounded": True}
                 
-                # Graceful Fallback: Model returned empty answer / thought-only response
+                # Graceful Fallback: Model returned empty answer / thought-only response.
+                # The message says the question was routed to a human, so escalate for real.
                 logger.warning(f"FAQ Agent returned 200 but empty answer_text for query: '{message}'")
                 return {
-                    "answer": f"I couldn't find specific FAQ information regarding '{message}' in our datastore. I have routed your query to our support team for further assistance.",
+                    "answer": "I don't have specific information on that right now, so I've routed your question to our support team for further assistance.",
                     "citations": ["FAQ Datastore Search"],
-                    "grounded": False
+                    "grounded": False,
+                    "escalate": True,
                 }
 
             # Graceful Fallback for Vertex AI Agent Engine model-level empty / thought errors
@@ -239,13 +275,56 @@ async def call_faq_agent(message: str, session_id: str) -> dict:
                 logger.warning(f"FAQ Agent returned model-level empty content error ({resp.status_code}): {resp.text}")
                 span.set_attribute("faq.model_error", "thought_only_fallback")
                 return {
-                    "answer": f"I couldn't find specific FAQ information regarding '{message}' in our datastore. I have routed your query to our support team for further assistance.",
+                    "answer": "I don't have specific information on that right now, so I've routed your question to our support team for further assistance.",
                     "citations": ["FAQ Datastore Search"],
-                    "grounded": False
+                    "grounded": False,
+                    "escalate": True,
                 }
 
             logger.error(f"FAQ Agent HTTP {resp.status_code}: {resp.text}")
             raise HTTPException(status_code=resp.status_code, detail=f"FAQ Agent Runtime error: {resp.text}")
+
+# Vertex AI Agent Engine session IDs: lowercase [a-z0-9-], start with a letter, <= 63 chars.
+_VERTEX_SESSION_ID_RE = re.compile(r"^[a-z][a-z0-9-]{0,61}[a-z0-9]$")
+
+def agent_session_id(ticket_id: str) -> str:
+    """Maps a ticket ID (uuid4, may start with a digit) to a valid, deterministic agent session ID."""
+    sid = f"t-{ticket_id.strip().lower()}"
+    if not _VERTEX_SESSION_ID_RE.fullmatch(sid):
+        raise HTTPException(status_code=400, detail="Invalid ticket ID")
+    return sid
+
+def faq_agent_query_url() -> str:
+    """Derives the engine's non-streaming ':query' URL from FAQ_AGENT_URL (':streamQuery')."""
+    if FAQ_AGENT_URL.endswith(":streamQuery"):
+        return FAQ_AGENT_URL[: -len(":streamQuery")] + ":query"
+    return FAQ_AGENT_URL
+
+async def delete_faq_session(ticket_id: str, user_id: str) -> bool:
+    """Best-effort deletion of the FAQ agent's conversation memory for a ticket.
+
+    Never raises: the 7-day session TTL on the agent side is the backstop.
+    """
+    if not FAQ_AGENT_URL:
+        return False
+    with tracer.start_as_current_span("delete_faq_agent_session") as span:
+        span.set_attribute("session.id", ticket_id)
+        try:
+            payload = {
+                "class_method": "async_delete_session",
+                "input": {"user_id": user_id, "session_id": agent_session_id(ticket_id)},
+            }
+            headers = get_gcp_auth_headers()
+            headers["Content-Type"] = "application/json"
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.post(faq_agent_query_url(), json=payload, headers=headers)
+            span.set_attribute("http.status_code", resp.status_code)
+            if resp.status_code == 200:
+                return True
+            logger.warning("FAQ session cleanup for ticket %s returned HTTP %s.", ticket_id, resp.status_code)
+        except Exception as e:
+            logger.warning("FAQ session cleanup for ticket %s failed: %s", ticket_id, type(e).__name__)
+        return False
 
 app = FastAPI(
     title="FDE Support Decoupled App Backend",
@@ -253,13 +332,8 @@ app = FastAPI(
     version="2.5.0"
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# No CORSMiddleware: the backend is only invoked server-to-server by the frontend proxy
+# (Cloud Run IAM), never directly by browsers, so no cross-origin access is granted.
 
 # OpenTelemetry Cloud Trace Instrumentation
 try:
@@ -296,14 +370,64 @@ except Exception as e:
     tracer = trace.get_tracer("fde-support-backend")
 
 
+# ---------------------------------------------------------------------------
+# Caller identity & ticket ownership
+# ---------------------------------------------------------------------------
+_EMAIL_RE = re.compile(r"^[^@\s]{1,128}@[^@\s]{1,253}$")
+
+_caller_resolver = build_caller_resolver(
+    iap_audience=settings.IAP_AUDIENCE,
+    frontend_service_account=settings.FRONTEND_SERVICE_ACCOUNT,
+    allow_direct_callers=settings.ALLOW_DIRECT_CALLERS,
+    dev_email=settings.DEV_FAKE_USER_EMAIL,
+)
+
+async def get_caller(request: Request) -> str:
+    """Returns the authenticated end-user identity (see backend/caller_identity.py).
+
+    Identity comes only from the IAP-signed JWT forwarded by the frontend (verified
+    here), or from a direct caller's own Cloud Run-verified ID token. X-User-Email and
+    identity fields in request bodies are ignored.
+    """
+    try:
+        caller = await _caller_resolver.resolve(request.headers)
+    except CallerAuthError as e:
+        logger.warning(f"Rejected request to {request.url.path}: {e}")
+        raise HTTPException(status_code=401, detail="Authentication required")
+    except Exception as e:
+        logger.error(f"Caller identity error on {request.url.path}: {type(e).__name__}")
+        raise HTTPException(status_code=401, detail="Authentication required")
+    if not _EMAIL_RE.match(caller.email):
+        raise HTTPException(status_code=401, detail="Authentication required")
+    logger.info(f"Caller authenticated via {caller.source} for {request.url.path}")
+    return caller.email
+
+def agent_user_id(caller: str) -> str:
+    """Stable, non-reversible per-user key for Agent Runtime sessions (no raw email sent)."""
+    return "u_" + hashlib.sha256(caller.encode("utf-8")).hexdigest()[:24]
+
+def new_ticket_id() -> str:
+    return str(uuid.uuid4())
+
+def get_owned_ticket(db: Session, ticket_id: str, caller: str) -> Ticket:
+    """Fetches a ticket only if it belongs to the caller. 404 (not 403) avoids revealing existence."""
+    ticket = db.query(Ticket).filter(Ticket.id == ticket_id, Ticket.customer_id == caller).first()
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+    return ticket
+
+
 class CreateTicketRequest(BaseModel):
-    session_id: str = Field(..., example="ticket_123456789")
-    customer_id: str = Field(default="cust_mock_123", example="cust_mock_123")
+    # Deprecated/ignored: ticket IDs are generated server-side and identity comes from auth.
+    session_id: str | None = None
+    customer_id: str | None = None
 
 class SupportQueryRequest(BaseModel):
-    message: str = Field(..., example="Where is my order #12345?")
-    session_id: str = Field(default_factory=lambda: "session_" + os.urandom(6).hex(), example="session_123456789")
-    customer_id: str = "cust_mock_123"
+    message: str = Field(..., max_length=4000, example="Where is my order #12345?")
+    # Ticket ID returned by /api/tickets/create. Omit to open a new ticket.
+    session_id: str | None = Field(default=None, max_length=64, example="3f0c...uuid")
+    # Deprecated/ignored: identity comes from the authenticated caller.
+    customer_id: str | None = None
 
 class SupportQueryResponse(BaseModel):
     ticket_id: str
@@ -343,10 +467,51 @@ async def get_services_status():
         }
     }
 
+ESCALATED_FOLLOWUP_ACK = (
+    "Your ticket is with our human support team. We've added your message to it, "
+    "and a specialist will reply here."
+)
+
+def append_to_escalated_ticket(db: Session, ticket: Ticket, message: str) -> "SupportQueryResponse":
+    """Records a customer follow-up for the human handling an ESCALATED ticket. No LLM calls."""
+    with tracer.start_as_current_span("escalated_ticket_followup") as span:
+        span.set_attribute("ticket.id", ticket.id)
+        db.add(Message(ticket_id=ticket.id, sender="CUSTOMER", message_text=message))
+        db.commit()
+    # The ack is returned to the UI but not stored, so the human's transcript holds only
+    # real customer turns.
+    return SupportQueryResponse(
+        ticket_id=ticket.id,
+        ticket_status="ESCALATED",
+        answer=ESCALATED_FOLLOWUP_ACK,
+        sentiment=ticket.sentiment or "UNAVAILABLE",
+        routed_to="Human Escalation Queue",
+        extracted_entities={},
+        citations=["Assigned to Human Support Specialist Queue"],
+        grounded=False,
+        session_id=ticket.id,
+        agent_service_version="v2.5-human-escalation",
+    )
+
+
 @app.post("/api/chat", response_model=SupportQueryResponse)
-async def process_support_query(request: SupportQueryRequest, db: Session = Depends(get_db)):
+async def process_support_query(request: SupportQueryRequest, db: Session = Depends(get_db), caller: str = Depends(get_caller)):
     if not request.message or not request.message.strip():
         raise HTTPException(status_code=400, detail="Message cannot be empty")
+
+    # Ownership check BEFORE any LLM call: a foreign/unknown ticket ID is rejected,
+    # so callers can never append to (or read agent memory of) another user's ticket.
+    existing_ticket = None
+    if request.session_id:
+        existing_ticket = get_owned_ticket(db, request.session_id, caller)
+        if existing_ticket.current_status == "RESOLVED":
+            raise HTTPException(
+                status_code=400,
+                detail="This ticket is marked as RESOLVED. Please click 'Start New Ticket' to submit new inquiries."
+            )
+    else:
+        request.session_id = new_ticket_id()
+    request.customer_id = caller
 
     # Step 0: Model Armor / Sensitive Data Protection Redaction
     # Redacts Credit Card Numbers, SSNs, and Email Addresses before sending to Gemini agents
@@ -357,6 +522,12 @@ async def process_support_query(request: SupportQueryRequest, db: Session = Depe
         span.set_attribute("model_armor.redacted", redacted)
         if redacted:
             logger.info("Model Armor successfully redacted sensitive customer PII before LLM dispatch.")
+
+    # Escalated tickets belong to the human queue (scoping doc): no sentiment or FAQ call.
+    # This is also what keeps the FAQ agent's memory consistent with the transcript: every
+    # turn it never saw ends with the ticket ESCALATED, and it is never asked again.
+    if existing_ticket is not None and existing_ticket.current_status == "ESCALATED":
+        return append_to_escalated_ticket(db, existing_ticket, request.message)
 
     # Step 1: Call Sentiment Agent on Agent Runtime over HTTP
     sentiment = "NEUTRAL_FACTUAL"
@@ -387,7 +558,7 @@ async def process_support_query(request: SupportQueryRequest, db: Session = Depe
         span.set_attribute("customer.id", request.customer_id)
         span.set_attribute("db.system", "postgresql")
 
-        db_ticket = db.query(Ticket).filter(Ticket.id == request.session_id).first()
+        db_ticket = db.query(Ticket).filter(Ticket.id == request.session_id, Ticket.customer_id == caller).first()
         
         if db_ticket:
             if db_ticket.current_status == "RESOLVED":
@@ -506,7 +677,7 @@ async def process_support_query(request: SupportQueryRequest, db: Session = Depe
         # HALF_OPEN state: Single probe test query (1 attempt only)
         logger.info("Circuit breaker in HALF_OPEN state: executing single probe test query...")
         try:
-            faq_data = await call_faq_agent(request.message, request.session_id)
+            faq_data = await call_faq_agent(request.message, request.session_id, agent_user_id(caller))
             rag_circuit_breaker.record_success()
         except Exception as e:
             logger.warning(f"FAQ agent probe in HALF_OPEN state failed: {e}")
@@ -518,7 +689,7 @@ async def process_support_query(request: SupportQueryRequest, db: Session = Depe
         max_attempts = 3
         for attempt in range(1, max_attempts + 1):
             try:
-                faq_data = await call_faq_agent(request.message, request.session_id)
+                faq_data = await call_faq_agent(request.message, request.session_id, agent_user_id(caller))
                 rag_circuit_breaker.record_success()
                 break
             except Exception as e:
@@ -560,6 +731,7 @@ async def process_support_query(request: SupportQueryRequest, db: Session = Depe
     answer_text = faq_data.get("answer", "No answer generated.")
     citations = faq_data.get("citations", [])
     grounded = faq_data.get("grounded", True)
+    escalate = bool(faq_data.get("escalate", False))
 
     # Parse nested JSON or Markdown if returned in answer string
     if isinstance(answer_text, str):
@@ -580,10 +752,16 @@ async def process_support_query(request: SupportQueryRequest, db: Session = Depe
                                 citations.append(str(c))
                     if "grounded" in parsed:
                         grounded = bool(parsed["grounded"])
+                    if "escalate" in parsed:
+                        escalate = bool(parsed["escalate"])
             except Exception:
                 match = re.search(r'"answer":\s*"(.*?)"\s*,\s*"(?:citations|grounded)"', raw_str, re.DOTALL)
                 if match:
                     answer_text = match.group(1).replace("\\n", "\n").replace('\\"', '"')
+
+    # Defense in depth: never show doc IDs / retrieval-backend references to customers.
+    # Doc IDs remain available in `citations` for debugging.
+    answer_text = sanitize_answer(answer_text)
 
     with tracer.start_as_current_span("cloud_sql_record_agent_response") as db_span:
         db_span.set_attribute("ticket.id", db_ticket.id)
@@ -591,7 +769,10 @@ async def process_support_query(request: SupportQueryRequest, db: Session = Depe
         db_span.set_attribute("faq.grounded", grounded)
         db_span.set_attribute("faq.citations_count", len(citations))
 
-        if db_ticket.current_status == "NEW":
+        if escalate:
+            # Agent could not resolve (no documented answer, action request, tool error)
+            db_ticket.current_status = "ESCALATED"
+        elif db_ticket.current_status == "NEW":
             db_ticket.current_status = "IN_PROGRESS"
 
         agent_msg = Message(
@@ -602,9 +783,7 @@ async def process_support_query(request: SupportQueryRequest, db: Session = Depe
         db.add(agent_msg)
         db.commit()
 
-    if not citations:
-        citations = [f"Datastore Query: {request.message}"]
-
+    # No placeholder citation: clarifying questions legitimately use no tools
     formatted_citations = format_citations(citations)
 
     return SupportQueryResponse(
@@ -612,7 +791,7 @@ async def process_support_query(request: SupportQueryRequest, db: Session = Depe
         ticket_status=db_ticket.current_status,
         answer=answer_text,
         sentiment=sentiment,
-        routed_to="Automated RAG Assistant",
+        routed_to="Automated RAG Assistant ➔ Human Escalation Queue" if escalate else "Automated RAG Assistant",
         extracted_entities=entities,
         citations=formatted_citations,
         grounded=grounded,
@@ -621,20 +800,18 @@ async def process_support_query(request: SupportQueryRequest, db: Session = Depe
     )
 
 @app.post("/api/tickets/create")
-async def create_ticket(request: CreateTicketRequest, db: Session = Depends(get_db)):
-    """Creates a new ticket with status 'NEW' in Cloud SQL when starting a new session."""
-    db_ticket = db.query(Ticket).filter(Ticket.id == request.session_id).first()
-    if not db_ticket:
-        db_ticket = Ticket(
-            id=request.session_id,
-            customer_id=request.customer_id,
-            current_status="NEW",
-            sentiment="NEUTRAL_FACTUAL"
-        )
-        db.add(db_ticket)
-        db.commit()
-        db.refresh(db_ticket)
-        logger.info(f"Created new ticket in Cloud SQL: id={db_ticket.id}, status=NEW")
+async def create_ticket(request: CreateTicketRequest | None = None, db: Session = Depends(get_db), caller: str = Depends(get_caller)):
+    """Creates a new ticket with status 'NEW' owned by the caller. The ID is generated server-side."""
+    db_ticket = Ticket(
+        id=new_ticket_id(),
+        customer_id=caller,
+        current_status="NEW",
+        sentiment="NEUTRAL_FACTUAL"
+    )
+    db.add(db_ticket)
+    db.commit()
+    db.refresh(db_ticket)
+    logger.info(f"Created new ticket in Cloud SQL: id={db_ticket.id}, status=NEW")
     
     return {
         "status": "success",
@@ -644,40 +821,33 @@ async def create_ticket(request: CreateTicketRequest, db: Session = Depends(get_
     }
 
 @app.post("/api/tickets/{ticket_id}/resolve")
-async def resolve_ticket(ticket_id: str, db: Session = Depends(get_db)):
-    db_ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
-    if not db_ticket:
-        db_ticket = Ticket(
-            id=ticket_id,
-            customer_id="authenticated_user@demo.com",
-            current_status="RESOLVED"
-        )
-        db.add(db_ticket)
-    else:
-        db_ticket.current_status = "RESOLVED"
+async def resolve_ticket(ticket_id: str, db: Session = Depends(get_db), caller: str = Depends(get_caller)):
+    db_ticket = get_owned_ticket(db, ticket_id, caller)
+    db_ticket.current_status = "RESOLVED"
 
     sys_msg = Message(
-        ticket_id=ticket_id,
+        ticket_id=db_ticket.id,
         sender="SYSTEM",
         message_text="Ticket has been marked as RESOLVED by the customer."
     )
     db.add(sys_msg)
     db.commit()
-    
+
+    # Resolved tickets can't receive new messages, so the agent's memory is no longer needed.
+    await delete_faq_session(db_ticket.id, agent_user_id(caller))
+
     return {
         "status": "success",
-        "ticket_id": ticket_id,
+        "ticket_id": db_ticket.id,
         "current_status": "RESOLVED",
-        "message": f"Ticket {ticket_id} has been marked as RESOLVED."
+        "message": f"Ticket {db_ticket.id} has been marked as RESOLVED."
     }
 
 @app.get("/api/tickets/{ticket_id}")
-async def get_ticket_details(ticket_id: str, db: Session = Depends(get_db)):
-    ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
-    if not ticket:
-        raise HTTPException(status_code=404, detail="Ticket not found")
+async def get_ticket_details(ticket_id: str, db: Session = Depends(get_db), caller: str = Depends(get_caller)):
+    ticket = get_owned_ticket(db, ticket_id, caller)
     
-    messages = db.query(Message).filter(Message.ticket_id == ticket_id).all()
+    messages = db.query(Message).filter(Message.ticket_id == ticket.id).all()
     return {
         "ticket": {
             "id": ticket.id,

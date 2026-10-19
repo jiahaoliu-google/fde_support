@@ -1,0 +1,44 @@
+﻿Order Number,Status,Items,Carrier,Tracking Number,Order Date,Estimated Delivery,Delivered Date,Status Detail,Last Update
+#10001,PROCESSING,Wireless Earbuds Pro,,,2026-10-16,2026-10-22,,Payment confirmed; order is being picked at the warehouse.,2026-10-17T09:12:00Z
+#10002,PROCESSING,"Standing Desk Frame, Desk Top 60in",,,2026-10-15,2026-10-24,,Large item; awaiting freight carrier pickup scheduling.,2026-10-17T14:40:00Z
+#10003,PROCESSING,Gift Card $50,,,2026-10-17,2026-10-21,,Physical gift card queued for printing.,2026-10-17T18:05:00Z
+#10004,PROCESSING,"Mechanical Gaming Keyboard, Custom Keycap Set",,,2026-10-17,2026-10-23,,Order received; keycap customization in progress.,2026-10-18T08:15:00Z
+#10005,PROCESSING,Ergonomic Vertical Mouse,,,2026-10-18,2026-10-22,,Payment processed; awaiting fulfillment queue.,2026-10-18T10:30:00Z
+#10101,SHIPPED,Running Shoes Size 10,UPS,1Z999AA10123456784,2026-10-12,2026-10-19,,Package handed to carrier.,2026-10-14T16:22:00Z
+#10102,SHIPPED,"Smart Watch Series 5, Sport Band",FedEx,7720 1234 5678,2026-10-13,2026-10-20,,Package handed to carrier.,2026-10-15T11:03:00Z
+#10103,SHIPPED,Paperback: The Pragmatic Programmer,USPS,9400 1000 0000 0000 0001,2026-10-14,2026-10-21,,Package handed to carrier.,2026-10-16T08:47:00Z
+#10104,SHIPPED,USB-C Docking Station 11-in-1,UPS,1Z999AA10123456880,2026-10-15,2026-10-21,,Package departed origin facility.,2026-10-17T21:10:00Z
+#10105,SHIPPED,Stainless Steel Water Bottle 32oz,USPS,9400 1000 0000 0000 0010,2026-10-16,2026-10-22,,Accepted at USPS regional origin facility.,2026-10-17T19:00:00Z
+#10201,IN_TRANSIT,4K Monitor 27in,UPS,1Z999AA10123456791,2026-10-10,2026-10-19,,"Arrived at regional sorting facility in Columbus, OH.",2026-10-17T22:15:00Z
+#10202,IN_TRANSIT,Espresso Machine,FedEx,7720 2234 5678,2026-10-09,2026-10-18,,In transit to destination facility.,2026-10-17T19:30:00Z
+#10203,IN_TRANSIT,"Yoga Mat, Resistance Bands Set",USPS,9400 1000 0000 0000 0002,2026-10-11,2026-10-20,,"Departed USPS facility in Memphis, TN.",2026-10-17T05:58:00Z
+#10204,IN_TRANSIT,Bluetooth Speaker,DHL,JD014600006281234567,2026-10-08,2026-10-23,,"International shipment cleared customs in Toronto, Canada.",2026-10-17T13:20:00Z
+#10205,IN_TRANSIT,"Noise Isolating Earplugs, Sleep Mask",UPS,1Z999AA10123456891,2026-10-11,2026-10-19,,"In transit; scan in Louisville, KY.",2026-10-18T02:40:00Z
+#10206,IN_TRANSIT,Smart LED Light Strip 10m,FedEx,7720 8234 5678,2026-10-12,2026-10-20,,Arrived at destination sorting hub.,2026-10-18T05:12:00Z
+#10301,OUT_FOR_DELIVERY,Noise-Cancelling Headphones,UPS,1Z999AA10123456805,2026-10-13,2026-10-18,,Out for delivery today; expected by 8:00 PM local time.,2026-10-18T07:45:00Z
+#10302,OUT_FOR_DELIVERY,"Phone Case, Screen Protector",USPS,9400 1000 0000 0000 0003,2026-10-14,2026-10-18,,Out for delivery today.,2026-10-18T06:10:00Z
+#10303,OUT_FOR_DELIVERY,High-Speed HDMI 2.1 Cable 6ft,FedEx,7720 9234 5678,2026-10-15,2026-10-18,,On FedEx vehicle for delivery.,2026-10-18T08:00:00Z
+#10304,OUT_FOR_DELIVERY,Wireless Charging Pad,UPS,1Z999AA10123456900,2026-10-14,2026-10-18,,Loaded on delivery truck in local area.,2026-10-18T07:15:00Z
+#10401,DELIVERED,"Laptop 14in, Laptop Sleeve",FedEx,7720 3234 5678,2026-10-01,2026-10-07,2026-10-06,Delivered; left at front door.,2026-10-06T15:32:00Z
+#10402,DELIVERED,Coffee Beans 2lb,USPS,9400 1000 0000 0000 0004,2026-10-05,2026-10-09,2026-10-09,Delivered to mailbox.,2026-10-09T12:01:00Z
+#10403,DELIVERED,Air Fryer 5qt,UPS,1Z999AA10123456812,2026-09-28,2026-10-03,2026-10-02,Delivered; signed for by resident.,2026-10-02T17:44:00Z
+#10404,DELIVERED,Tablet 11in,FedEx,7720 4234 5678,2026-09-20,2026-09-26,2026-09-25,Delivered; handed to building front desk.,2026-09-25T10:18:00Z
+#10405,DELIVERED,Winter Jacket Size M,USPS,9400 1000 0000 0000 0005,2026-10-02,2026-10-08,2026-10-07,Delivered to parcel locker.,2026-10-07T09:55:00Z
+#10406,DELIVERED,Wireless Trackball Mouse,UPS,1Z999AA10123456910,2026-10-04,2026-10-09,2026-10-08,Delivered to porch.,2026-10-08T14:20:00Z
+#10407,DELIVERED,Insulated Travel Mug 20oz,USPS,9400 1000 0000 0000 0011,2026-10-06,2026-10-11,2026-10-10,Delivered to mailroom.,2026-10-10T11:45:00Z
+#10501,DELAYED,Gaming Console,UPS,1Z999AA10123456829,2026-10-06,2026-10-21,,Weather delay at carrier hub; original estimate was 2026-10-13.,2026-10-16T20:02:00Z
+#10502,DELAYED,Office Chair,FedEx,7720 5234 5678,2026-10-04,2026-10-22,,Address verification required by carrier; original estimate was 2026-10-12.,2026-10-15T14:27:00Z
+#10503,DELAYED,Backordered: Camera Lens 50mm,,,2026-09-30,2026-11-05,,Item is backordered from the supplier; ships when restocked.,2026-10-14T09:00:00Z
+#10504,DELAYED,Curved Gaming Monitor 34in,UPS,1Z999AA10123456925,2026-10-05,2026-10-23,,Train derailment along carrier line caused transit delay.,2026-10-17T11:15:00Z
+#10505,DELAYED,Mechanical Keyboard Switches (110x),USPS,9400 1000 0000 0000 0012,2026-10-07,2026-10-22,,Misrouted by USPS to wrong distribution center; rerouted.,2026-10-16T18:00:00Z
+#10601,RETURN_IN_PROGRESS,Blender,UPS,1Z999AA10123456836,2026-09-15,2026-09-21,2026-09-20,Return label issued 2026-10-10; awaiting drop-off at carrier.,2026-10-10T11:11:00Z
+#10602,RETURN_IN_PROGRESS,Sneakers Size 9,USPS,9400 1000 0000 0000 0006,2026-09-25,2026-09-30,2026-09-29,Return received at warehouse 2026-10-15; refund processing (3-5 business days).,2026-10-15T16:40:00Z
+#10603,RETURNED,Electric Toothbrush,FedEx,7720 6234 5678,2026-09-01,2026-09-06,2026-09-05,Return completed; refund issued to original payment method on 2026-09-20.,2026-09-20T10:00:00Z
+#10604,RETURNED,Bluetooth Headphones (Over-Ear),UPS,1Z999AA10123456930,2026-08-20,2026-08-26,2026-08-25,Returned due to size preference; full refund posted 2026-09-05.,2026-09-05T14:10:00Z
+#10701,CANCELLED,Smart Home Hub,,,2026-10-03,,,Cancelled at customer request before shipment; refund issued 2026-10-04.,2026-10-04T08:30:00Z
+#10702,CANCELLED,Limited Edition Vinyl,,,2026-10-07,,,Cancelled: item out of stock; refund issued 2026-10-08.,2026-10-08T12:00:00Z
+#10703,CANCELLED,Portable Power Bank 20000mAh,,,2026-10-10,,,Cancelled due to duplicate order submission; refund issued 2026-10-11.,2026-10-11T09:45:00Z
+#10801,SHIPPED,"Kitchen Knife Set, Cutting Board",UPS,1Z999AA10123456843,2026-10-12,2026-10-19,,Partial shipment: Kitchen Knife Set shipped; Cutting Board ships separately by 2026-10-21.,2026-10-14T13:13:00Z
+#10802,DELIVERED,Monitor Arm,FedEx,7720 7234 5678,2026-10-08,2026-10-13,2026-10-13,Carrier reports delivered; a carrier delivery investigation was opened on 2026-10-15.,2026-10-15T09:20:00Z
+#10803,IN_TRANSIT,Replacement Charger (warranty),USPS,9400 1000 0000 0000 0007,2026-10-14,2026-10-20,,Free warranty replacement shipment.,2026-10-17T03:33:00Z
+#10804,SHIPPED,"Smart Thermostat, Temperature Sensor 3-Pack",UPS,1Z999AA10123456950,2026-10-13,2026-10-20,,Split order: Thermostat shipped via UPS; sensors shipping separately via USPS.,2026-10-15T17:00:00Z

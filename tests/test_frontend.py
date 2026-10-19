@@ -20,7 +20,7 @@ class TestFrontendServer(unittest.TestCase):
         data = response.json()
         self.assertEqual(data["status"], "healthy")
         self.assertEqual(data["service"], "FDE Support Web Frontend")
-        self.assertEqual(data["port"], 3000)
+        self.assertNotIn("port", data)
 
     def test_frontend_index_endpoint(self):
         response = self.client.get("/")
@@ -28,7 +28,9 @@ class TestFrontendServer(unittest.TestCase):
         html_content = response.text
         self.assertIn("FDE Support Portal", html_content)
         self.assertIn("Smart Ticket Router & Grounded Knowledge Assistant", html_content)
-        self.assertIn("http://127.0.0.1:8000", html_content)
+        # Same-origin relative API calls (no hardcoded backend host in the page).
+        self.assertIn("const BACKEND_URL = '';", html_content)
+        self.assertNotIn("http://127.0.0.1:8000", html_content)
 
 if __name__ == "__main__":
     unittest.main()

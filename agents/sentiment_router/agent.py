@@ -53,9 +53,7 @@ Output must strictly adhere to valid JSON format with keys:
 - product_name: string or null
 - email: string or null
 """,
-    generate_content_config=types.GenerateContentConfig(
-        response_mime_type="application/json"
-    )
+    generate_content_config={"response_mime_type": "application/json"}
 )
 
 app = App(

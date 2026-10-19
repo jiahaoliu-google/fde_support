@@ -1,31 +1,44 @@
+"""Frontend identity resolver configuration (real common.iap_auth; signature checks are in test_authz)."""
+import asyncio
+import os
+import sys
 import unittest
+from unittest.mock import patch
 
-def mock_verify_iap_header(headers: dict) -> dict:
-    user_email_header = headers.get("X-Goog-Authenticated-User-Email", "")
-    iap_jwt = headers.get("X-Goog-IAP-JWT-Assertion", "")
-    user_email = user_email_header.replace("accounts.google.com:", "") if user_email_header else "anonymous_user@cloudidentity.internal"
-    return {
-        "authenticated": True if user_email_header or iap_jwt else False,
-        "email": user_email,
-        "jwt_present": bool(iap_jwt)
-    }
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-class TestIAPAuth(unittest.TestCase):
-    def test_iap_header_verification(self):
-        headers = {
-            "X-Goog-Authenticated-User-Email": "accounts.google.com:testuser@example.com",
-            "X-Goog-IAP-JWT-Assertion": "dummy_jwt_token"
-        }
-        res = mock_verify_iap_header(headers)
-        self.assertTrue(res["authenticated"])
-        self.assertEqual(res["email"], "testuser@example.com")
-        self.assertTrue(res["jwt_present"])
+from common.iap_auth import IapAuthError, build_identity_resolver  # noqa: E402
 
-    def test_iap_header_fallback(self):
-        headers = {}
-        res = mock_verify_iap_header(headers)
-        self.assertFalse(res["authenticated"])
-        self.assertIn("anonymous_user", res["email"])
 
-if __name__ == '__main__':
+def _env(**values):
+    env = {k: v for k, v in os.environ.items() if k not in ("IAP_AUDIENCE", "DEV_FAKE_USER_EMAIL", "K_SERVICE")}
+    env.update(values)
+    return patch.dict(os.environ, env, clear=True)
+
+
+class TestIdentityResolverConfig(unittest.TestCase):
+    def test_unsigned_email_header_is_not_trusted(self):
+        with _env(IAP_AUDIENCE="/projects/1/global/backendServices/2"):
+            resolve = build_identity_resolver()
+        with self.assertRaises(IapAuthError):
+            asyncio.run(resolve({"x-goog-authenticated-user-email": "accounts.google.com:ceo@x.com"}))
+
+    def test_no_audience_fails_closed(self):
+        with _env():
+            resolve = build_identity_resolver()
+        with self.assertRaises(IapAuthError):
+            asyncio.run(resolve({"x-goog-iap-jwt-assertion": "anything"}))
+
+    def test_dev_identity_only_off_cloud_run(self):
+        with _env(DEV_FAKE_USER_EMAIL="Dev@Example.com"):
+            resolve = build_identity_resolver()
+        self.assertEqual(asyncio.run(resolve({})).email, "dev@example.com")
+
+        with _env(DEV_FAKE_USER_EMAIL="dev@example.com", K_SERVICE="fde-support-frontend"):
+            resolve = build_identity_resolver()
+        with self.assertRaises(IapAuthError):
+            asyncio.run(resolve({}))
+
+
+if __name__ == "__main__":
     unittest.main()

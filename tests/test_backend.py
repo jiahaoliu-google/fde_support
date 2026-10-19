@@ -8,12 +8,13 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from backend.main import app
+from iap_test_utils import iap_headers  # noqa: E402
 
 class TestDecoupledBackendAPI(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.client = TestClient(app)
+        cls.client = TestClient(app, headers=iap_headers("alex@example.com"))
 
     def test_health_endpoint(self):
         response = self.client.get("/health")

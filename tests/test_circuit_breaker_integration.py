@@ -8,12 +8,13 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from backend.main import app, rag_circuit_breaker
+from iap_test_utils import iap_headers  # noqa: E402
 from backend.circuit_breaker import CircuitState
 
 class TestCircuitBreakerIntegration(unittest.TestCase):
 
     def setUp(self):
-        self.client = TestClient(app)
+        self.client = TestClient(app, headers=iap_headers("alex@example.com"))
         # Reset circuit breaker before each test
         rag_circuit_breaker.record_success()
         rag_circuit_breaker.recovery_timeout_seconds = 1.0

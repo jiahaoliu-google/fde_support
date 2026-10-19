@@ -56,12 +56,18 @@ class Settings(BaseSettings):
     DATABASE_URL: str = ""
 
     # Vertex AI Reasoning Engine Endpoints
-    FAQ_AGENT_URL: str = "https://us-central1-aiplatform.googleapis.com/v1/projects/883790454740/locations/us-central1/reasoningEngines/2655856592997580800:streamQuery"
-    SENTIMENT_AGENT_URL: str = "https://us-central1-aiplatform.googleapis.com/v1/projects/883790454740/locations/us-central1/reasoningEngines/3704069406268063744:streamQuery"
+    FAQ_AGENT_URL: str = "https://us-central1-aiplatform.googleapis.com/v1/projects/883790454740/locations/us-central1/reasoningEngines/6767283237606653952:streamQuery"
+    SENTIMENT_AGENT_URL: str = "https://us-central1-aiplatform.googleapis.com/v1/projects/883790454740/locations/us-central1/reasoningEngines/7184992103045267456:streamQuery"
     
     # Circuit Breaker Configuration
     CIRCUIT_FAILURE_THRESHOLD: int = 3
     CIRCUIT_RECOVERY_TIMEOUT: float = 30.0
+
+    # Caller identity (see backend/caller_identity.py)
+    IAP_AUDIENCE: str = ""                # audience of the IAP-signed JWT forwarded by the frontend
+    FRONTEND_SERVICE_ACCOUNT: str = ""    # only invoker allowed to forward IAP assertions
+    ALLOW_DIRECT_CALLERS: bool = False    # testing: other invokers act as their own identity
+    DEV_FAKE_USER_EMAIL: str = ""         # local development only; ignored on Cloud Run
 
     model_config = SettingsConfigDict(
         env_file=".env",

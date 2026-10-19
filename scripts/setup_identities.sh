@@ -35,7 +35,7 @@ else
     echo "Service account ${BACKEND_SA} already exists."
 fi
 
-# 3. Grant Backend Service Account Cloud SQL Client and Vertex AI User roles
+# 3. Grant Backend Service Account Cloud SQL Client, Vertex AI User, and Secret Manager Accessor roles
 echo "Step 3: Assigning IAM roles to Backend Service Account..."
 gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
     --member="serviceAccount:${BACKEND_SA}" \
@@ -47,12 +47,39 @@ gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
     --role="roles/aiplatform.user" \
     --quiet
 
-# 4. Grant Frontend Service Account Cloud Run Invoker on Backend
-echo "Step 4: Assigning Cloud Run Invoker role to Frontend Service Account..."
 gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
+    --member="serviceAccount:${BACKEND_SA}" \
+    --role="roles/secretmanager.secretAccessor" \
+    --quiet
+
+# 4. Grant Frontend Service Account Cloud Run Invoker on the BACKEND SERVICE ONLY.
+# SECURITY: the backend takes the user's identity from the IAP-signed JWT the frontend forwards
+# (accepted only from the frontend SA), or from a direct invoker's own ID token (acts as itself).
+# It never trusts X-User-Email. See backend/caller_identity.py.
+echo "Step 4: Scoping Cloud Run Invoker on backend service to Frontend Service Account..."
+REGION="us-central1"
+BACKEND_SERVICE="fde-support-backend"
+
+gcloud run services add-iam-policy-binding "${BACKEND_SERVICE}" \
+    --region="${REGION}" \
     --member="serviceAccount:${FRONTEND_SA}" \
     --role="roles/run.invoker" \
+    --project="${PROJECT_ID}" \
     --quiet
+
+# Remove legacy broad grants (ignore errors if they are already absent).
+gcloud projects remove-iam-policy-binding "${PROJECT_ID}" \
+    --member="serviceAccount:${FRONTEND_SA}" \
+    --role="roles/run.invoker" \
+    --quiet >/dev/null 2>&1 || true
+
+PROJECT_NUMBER="$(gcloud projects describe "${PROJECT_ID}" --format='value(projectNumber)')"
+gcloud run services remove-iam-policy-binding "${BACKEND_SERVICE}" \
+    --region="${REGION}" \
+    --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
+    --role="roles/run.invoker" \
+    --project="${PROJECT_ID}" \
+    --quiet >/dev/null 2>&1 || true
 
 echo "============================================================"
 echo " SUCCESS: Service Accounts & IAM Roles Configured! "

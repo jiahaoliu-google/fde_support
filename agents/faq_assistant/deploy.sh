@@ -16,6 +16,7 @@ agents-cli deploy \
     --project="${PROJECT_ID}" \
     --region="${REGION}" \
     --agent-identity \
+    --update-env-vars="FAQ_SESSION_TTL_SECONDS=604800,REQUIRE_DURABLE_SESSIONS=true,AGENT_ENGINE_LOCATION=${REGION}" \
     --no-confirm-project
 
 echo "=== FAQ Assistant Agent Deployment Command Triggered Successfully! ==="

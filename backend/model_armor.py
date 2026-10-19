@@ -15,6 +15,10 @@ except ImportError:
 class ModelArmorRedactor:
     """Model Armor / Sensitive Data Protection Redactor.
     Redacts Credit Card Numbers, SSNs, and Email Addresses from customer queries before sending to Gemini.
+
+    Order IDs (format #10001 / #####) are intentionally NOT redacted: by product decision they are
+    not treated as PII, and the FAQ agent needs them for read-only order lookups. Their 5-digit
+    format stays clear of the 13-19 digit credit card pattern below.
     """
 
     def __init__(self, project_id: Optional[str] = None):

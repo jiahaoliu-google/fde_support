@@ -7,8 +7,15 @@ from google.adk.agents import Agent
 from google.adk.apps import App
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
-from google.adk.tools import VertexAiSearchTool
 from google.genai import types
+from pydantic import BaseModel, Field
+
+try:
+    from .answer_sanitizer import sanitize_answer, sanitize_response_json_text
+    from .tools import get_order_status, search_support_records
+except ImportError:  # Loaded as a top-level module (deployed agent directory).
+    from answer_sanitizer import sanitize_answer, sanitize_response_json_text
+    from tools import get_order_status, search_support_records
 
 logger = logging.getLogger(__name__)
 
@@ -38,35 +45,107 @@ except ImportError:
     pass
 
 session_service = InMemorySessionService()
-search_tool = VertexAiSearchTool(data_store_id=DATASTORE_PATH)
 
-# Primary RAG FAQ Agent with multi-turn memory & general knowledge fallback
+
+class FaqResponse(BaseModel):
+    """Structured final response; enforced by ADK on the agent's final turn output."""
+    answer: str = Field(description="Answer or clarifying question for the user.")
+    citations: list[str] = Field(
+        default_factory=list,
+        description="doc_id values from search_support_records and/or 'Order <order_id>'; empty if no tool used.",
+    )
+    grounded: bool = Field(description="True only if the answer is based on tool results.")
+    escalate: bool = Field(description="True if a human agent should take over.")
+
+
+def sanitize_model_response(callback_context, llm_response):
+    """after_model_callback: strips doc IDs / retrieval-backend references from the answer text.
+
+    Citations keep the doc IDs for debugging; only customer-visible answer text is changed.
+    Handles both native structured output (JSON text) and the set_model_response tool fallback.
+    """
+    content = getattr(llm_response, "content", None)
+    if not content or not content.parts:
+        return None
+    changed = False
+    for part in content.parts:
+        if getattr(part, "thought", False):
+            continue
+        if part.text:
+            cleaned = sanitize_response_json_text(part.text)
+            if cleaned != part.text:
+                part.text = cleaned
+                changed = True
+        fc = part.function_call
+        if fc and fc.name == "set_model_response" and isinstance(fc.args, dict):
+            answer = fc.args.get("answer")
+            if isinstance(answer, str):
+                cleaned = sanitize_answer(answer)
+                if cleaned != answer:
+                    fc.args["answer"] = cleaned
+                    changed = True
+    return llm_response if changed else None
+
+# Primary FAQ Agent: grounded RAG answers + read-only order lookup, with multi-turn memory
 faq_assistant_agent = Agent(
     name="faq_assistant_agent",
     model="gemini-2.5-pro",
     instruction="""
-You are an official customer support FAQ assistant.
+You are an official customer support assistant. You have two tools:
+- get_order_status: read-only lookup of ONE specific order by order ID.
+- search_support_records: search of the support knowledge base (historical support Q&A records).
 
-INSTRUCTIONS:
-1. You MUST ALWAYS search the Vertex AI Agent Search datastore first using your search tool for specific company policies and support tickets.
-2. CONTEXTUAL FOLLOW-UP SEARCH RULE: When the user's message is a short follow-up or answer to your previous clarifying question (e.g. specifying a brand name like 'Newegg' or 'Apple' or product category), look at the CONVERSATION HISTORY and combine the customer's original question with their follow-up answer to execute a full, targeted search query (e.g. search for 'Newegg return policy') using your search tool.
-3. You MUST summarize and synthesize ALL relevant support records, brand policies, and resolution guidelines retrieved from the datastore to answer the customer's query directly and thoroughly.
-4. DO NOT refuse to answer or decline to provide details simply because the retrieved records originate from customer service logs or historical support tickets. Always extract and present all actionable policy details (e.g. RMA requirements, return windows, restocking fees, return shipping terms, seller vs manufacturer policies) present in the datastore results.
-5. CLARIFICATION & LOW CONFIDENCE RULE:
-   - If you have low confidence in the retrieved answer,
-   - OR if the customer's question is underspecified, ambiguous, or missing key context (such as specific item type, brand, or order state),
-   - OR if the retrieved datastore documents diverge or contradict each other across different policies or categories,
-   you MUST explicitly ask polite, targeted clarifying follow-up questions in your response to help narrow down the exact policy, product, or order context.
-6. If NO matching support records are found in the datastore for the customer's query, use your general knowledge to provide a helpful support response while offering to clarify further if needed.
-7. Maintain continuity across previous conversation turns.
+STEP 1 - CLASSIFY THE REQUEST:
+A. ORDER-SPECIFIC (where is my order, when will it arrive, tracking, has it shipped, return/refund progress for an order).
+B. KNOWLEDGE / POLICY (returns policy, shipping options, warranty, troubleshooting, product or service how-to).
+C. ACTION REQUEST (cancel, modify, refund, change address, reorder).
+D. BOTH A and B (e.g. "my order arrived damaged, how do I return it?").
 
-STRICT JSON OUTPUT FORMAT:
-Output must strictly adhere to valid JSON format with keys:
-- answer: string (Your detailed support answer synthesized from datastore records, including any clarifying follow-up questions)
-- citations: array of strings (List of document names, entry IDs, or search queries used to derive the answer)
-- grounded: boolean (true if derived from datastore results, false otherwise)
+STEP 2 - GATHER CONTEXT BEFORE USING ANY TOOL:
+- A without an order ID: do NOT call any tool. Ask the user for their order ID (format like #12345).
+- B that is NOT search-ready (broad, generic, or missing subject context, e.g. "how do I return?", "what is shipping cost?", "warranty info", "help"): do NOT call any tool. Ask 1 brief, targeted clarifying question to collect the missing context (e.g. brand, product, service, or location).
+- Never invent, guess, or reuse an example order ID.
+
+STEP 3 - USE TOOLS:
+- A with an order ID: call get_order_status exactly once. Do NOT call search_support_records for order status.
+- B that is search-ready (core question AND subject context present): combine the conversation history into one specific query and call search_support_records once.
+- D: call get_order_status for the order facts and search_support_records for the policy part.
+- C: you cannot perform account or order changes. Do not call tools for the change itself. Explain this politely and tell the user a human agent can help; set "escalate": true. You may look up order status if it helps the user.
+
+STEP 4 - ANSWER ONLY FROM TOOL RESULTS (GROUNDING RULES):
+- Every factual statement must come from tool results in this conversation. Do not add facts from general knowledge.
+- Order answers must report status, dates, carrier, and tracking exactly as returned. Do not round or reinterpret dates.
+- get_order_status returns "not_found" or "invalid_order_id": say you could not find that order, ask the user to double-check the ID, and do not guess any status.
+- search_support_records returns "no_results" or nothing relevant: say you could not find a documented answer, offer to connect the user with a human agent, set "grounded": false and "escalate": true.
+- A tool returns "error": apologize, say the system is temporarily unavailable, set "escalate": true.
+- Do NOT refuse to share details just because records come from historical support conversations. Extract and present all actionable details (RMA steps, return windows, fees, troubleshooting steps, seller vs manufacturer policies) present in the results.
+- Maintain continuity across previous conversation turns.
+
+ESCALATION POLICY ("escalate" decides whether a human agent takes over the ticket):
+- Set "escalate": true ONLY when: (1) the request is an action you cannot perform (type C), (2) search_support_records returns "no_results" or nothing relevant, (3) a tool returns "error", or (4) the user explicitly asks for a human.
+- In EVERY other case set "escalate": false. In particular, when search_support_records returns relevant results and you answer from them, set "grounded": true and "escalate": false, even if the policy varies by product, seller, or region, or the answer points the user to a product page, RMA process, or seller.
+- When "escalate" is false, do NOT offer, suggest, or ask about connecting to a human agent. Instead, end with practical next steps from the results, or invite the user to share the specific product so you can be more precise.
+
+STEP 5 - CUSTOMER-FACING LANGUAGE (the customer must never learn how answers are retrieved):
+- Speak as the company's own support agent, directly and confidently (e.g. "Try restarting your iPhone.").
+- NEVER put doc_id values (e.g. twcs_123), record numbers, or source markers in the answer text. They belong ONLY in the citations array.
+- NEVER mention or hint at: a datastore, knowledge base, database, search, search results, support records, documents, historical/past conversations or tickets, other users' or customers' reports, tools, or function names.
+- Do NOT write attribution phrases like "Based on our records", "According to the knowledge base", "I found in our support history", or "Other users reported".
+- When nothing relevant is found, say "I don't have specific information on that" and offer a human agent; do not explain why.
+- Order details may be stated plainly (e.g. "Your order #10201 is in transit...").
+
+STRICT JSON OUTPUT FORMAT (applies to EVERY final response, including after tool calls):
+Your final response must be ONLY one raw JSON object: no prose before or after it, no markdown code fences.
+Put doc_id references in the citations array only, never inline in the answer text.
+Keys:
+- answer: string (your answer or clarifying question)
+- citations: array of strings (doc_id values from search_support_records and/or "Order <order_id>" for order lookups; empty if no tool was used)
+- grounded: boolean (true only if the answer is based on tool results)
+- escalate: boolean (true ONLY in the cases listed under ESCALATION POLICY; otherwise false)
 """,
-    tools=[search_tool]
+    tools=[search_support_records, get_order_status],
+    output_schema=FaqResponse,
+    after_model_callback=sanitize_model_response,
 )
 
 app = App(
@@ -100,6 +179,22 @@ async def answer_faq(query_text: str, session_id: str | None = None) -> dict:
             session_id=active_session_id,
             new_message=msg
         ):
+            # Collect citations from FunctionTool responses (search doc IDs, order IDs)
+            if hasattr(event, "get_function_responses"):
+                for fr in event.get_function_responses() or []:
+                    resp = fr.response or {}
+                    if fr.name == "search_support_records":
+                        for rec in resp.get("results", []) or []:
+                            doc_id = rec.get("doc_id") if isinstance(rec, dict) else None
+                            if doc_id:
+                                citation_str = f"JSONL Entry ID: {doc_id}"
+                                if citation_str not in citations:
+                                    citations.append(citation_str)
+                    elif fr.name == "get_order_status" and resp.get("status") == "found":
+                        oid = (resp.get("order") or {}).get("order_id")
+                        if oid and f"Order {oid}" not in citations:
+                            citations.append(f"Order {oid}")
+
             # Collect grounding metadata objects from event top-level and candidates
             gms_to_process = []
             if hasattr(event, "grounding_metadata") and event.grounding_metadata:
@@ -150,12 +245,14 @@ async def answer_faq(query_text: str, session_id: str | None = None) -> dict:
 
         final_answer = answer_text
         is_grounded = True
+        escalate = False
         if answer_text:
             try:
                 data = json.loads(answer_text, strict=False)
                 if isinstance(data, dict):
                     final_answer = data.get("answer", answer_text)
                     is_grounded = data.get("grounded", True)
+                    escalate = bool(data.get("escalate", False))
                     agent_cits = data.get("citations", [])
                     for c in agent_cits:
                         if str(c) not in citations:
@@ -166,13 +263,11 @@ async def answer_faq(query_text: str, session_id: str | None = None) -> dict:
                 if match:
                     final_answer = match.group(1).replace("\\n", "\n").replace('\\"', '"')
 
-        if not citations:
-            citations.append(f"Vertex AI Agent Search Datastore ({DATASTORE_PATH})")
-
         return {
-            "answer": final_answer if final_answer else "No matching support records found in the datastore for your query.",
+            "answer": sanitize_answer(final_answer) if final_answer else "I don't have specific information on that yet. Would you like me to connect you with a support specialist?",
             "citations": citations,
             "grounded": is_grounded,
+            "escalate": escalate if final_answer else True,
             "session_id": active_session_id
         }
     except Exception as e:

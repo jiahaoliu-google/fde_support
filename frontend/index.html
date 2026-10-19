@@ -419,7 +419,7 @@
                             Welcome! Submit any customer support inquiry below.
                             
 • <b>Frustrated / Urgent Tickets</b> will be assigned directly to our Senior Human Queue.
-• <b>Factual Questions</b> will be searched against our knowledge base to provide grounded answers with citations.
+• <b>Factual Questions</b> will be answered right away by our support assistant.
                         </div>
                     </div>
                 </div>
@@ -459,7 +459,8 @@
         const BACKEND_URL = '';
         
         let currentCustomerId = '';
-        let currentSessionId = 'ticket_' + Math.random().toString(36).substring(2, 11);
+        // Ticket IDs are generated server-side (POST /api/tickets/create); identity comes from IAP.
+        let currentSessionId = null;
         let isResolved = false;
 
         function escapeHtml(text) {
@@ -479,33 +480,34 @@
         async function fetchUserInfo() {
             try {
                 const res = await fetch(`${BACKEND_URL}/api/user/me`);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const data = await res.json();
                 if (data.user_email) {
                     currentCustomerId = data.user_email;
                     document.getElementById('userBadge').textContent = `👤 User: ${currentCustomerId}`;
-                    createNewTicketInDB(currentSessionId, currentCustomerId);
+                    createNewTicketInDB();
                 }
             } catch (err) {
-                console.error("Failed to fetch user info:", err);
-                currentCustomerId = 'authenticated_user@demo.com';
-                document.getElementById('userBadge').textContent = `👤 User: ${currentCustomerId}`;
+                console.error("Failed to fetch user info");
+                document.getElementById('userBadge').textContent = '👤 Not signed in';
             }
         }
 
-        async function createNewTicketInDB(sessionId, customerId) {
-            if (!sessionId || !customerId) return;
+        async function createNewTicketInDB() {
             try {
                 const res = await fetch(`${BACKEND_URL}/api/tickets/create`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ session_id: sessionId, customer_id: customerId })
+                    body: JSON.stringify({})
                 });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const data = await res.json();
-                if (data.ticket_status) {
-                    updateTicketBadge(data.ticket_status);
+                if (data.ticket_id) {
+                    currentSessionId = data.ticket_id;
                 }
+                updateTicketBadge(data.ticket_status || 'NEW');
             } catch (err) {
-                console.error("Failed to create ticket in DB:", err);
+                console.error("Failed to create ticket in DB");
             }
         }
 
@@ -515,7 +517,8 @@
         }
 
         function updateTicketBadge(status = 'NEW') {
-            document.getElementById('ticketBadge').textContent = `🎫 Ticket #${currentSessionId.substring(0, 12)}... [${status}]`;
+            const idLabel = currentSessionId ? `${currentSessionId.substring(0, 12)}...` : 'pending';
+            document.getElementById('ticketBadge').textContent = `🎫 Ticket #${idLabel} [${status}]`;
         }
 
         async function checkStatus() {
@@ -569,7 +572,7 @@
                         <span class="badge-tag processing">⚡ Processing your request...</span>
                     </div>
                     <div class="agent-answer" style="color: #fcd34d; font-style: italic; text-align: left;">
-                        We are searching our knowledge base and composing the response...
+                        Our assistant is looking into this and composing a response...
                     </div>
                 </div>
             `;
@@ -577,14 +580,12 @@
             container.scrollTop = container.scrollHeight;
 
             try {
+                const chatBody = { message: text };
+                if (currentSessionId) chatBody.session_id = currentSessionId;
                 const res = await fetch(`${BACKEND_URL}/api/chat`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        message: text,
-                        session_id: currentSessionId,
-                        customer_id: currentCustomerId
-                    })
+                    body: JSON.stringify(chatBody)
                 });
 
                 const data = await res.json();
@@ -600,6 +601,9 @@
                     return;
                 }
 
+                if (data.ticket_id) {
+                    currentSessionId = data.ticket_id;
+                }
                 if (data.ticket_status) {
                     updateTicketBadge(data.ticket_status);
                 }
@@ -684,11 +688,12 @@
         }
 
         async function resolveTicket() {
-            if (isResolved) return;
+            if (isResolved || !currentSessionId) return;
             try {
-                const res = await fetch(`${BACKEND_URL}/api/tickets/${currentSessionId}/resolve`, {
+                const res = await fetch(`${BACKEND_URL}/api/tickets/${encodeURIComponent(currentSessionId)}/resolve`, {
                     method: 'POST'
                 });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 
                 disableChat();
                 updateTicketBadge('RESOLVED');
@@ -727,7 +732,7 @@
         }
 
         function startNewTicket() {
-            currentSessionId = 'ticket_' + Math.random().toString(36).substring(2, 11);
+            currentSessionId = null;
             isResolved = false;
 
             document.getElementById('userInput').disabled = false;
@@ -746,7 +751,7 @@
                             Welcome! Fresh ticket session initialized for customer <b>${escapeHtml(currentCustomerId)}</b>.
                             
 • <b>Frustrated / Urgent Tickets</b> will be assigned directly to our Senior Human Queue.
-• <b>Factual Questions</b> will be searched against our knowledge base to provide grounded answers with citations.
+• <b>Factual Questions</b> will be answered right away by our support assistant.
                         </div>
                     </div>
                 </div>
@@ -759,7 +764,7 @@
             `;
 
             updateTicketBadge('NEW');
-            createNewTicketInDB(currentSessionId, currentCustomerId);
+            createNewTicketInDB();
         }
     </script>
 </body>

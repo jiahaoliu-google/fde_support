@@ -1,27 +1,68 @@
 import os
 import certifi
-import json
+import logging
 import subprocess
 import httpx
-from fastapi import FastAPI, Request, Response
+from urllib.parse import urlsplit
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse
-from fastapi.middleware.cors import CORSMiddleware
+
+from common.iap_auth import (
+    FORWARDED_IAP_ASSERTION_HEADER,
+    IAP_ASSERTION_HEADER,
+    IapAuthError,
+    IapIdentity,
+    build_identity_resolver,
+)
 
 os.environ.setdefault("SSL_CERT_FILE", certifi.where())
 os.environ.setdefault("REQUESTS_CA_BUNDLE", certifi.where())
+
+logger = logging.getLogger("frontend")
+logging.basicConfig(level=logging.INFO)
 
 app = FastAPI(
     title="FDE Support Portal Web Frontend",
     description="Dedicated Frontend Application serving Customer Support Web Portal with GCP IAP User Identity Extraction."
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# No CORSMiddleware: the UI (index.html) is served from this same origin and calls
+# relative /api/* URLs, so browsers never need cross-origin access. Without CORS headers,
+# other sites cannot read responses even if the browser attaches the IAP cookie.
+
+SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+ALLOWED_FETCH_SITES = frozenset({"same-origin", "none"})  # "none" = user-initiated (address bar)
+
+def is_cross_site_request(request: Request) -> bool:
+    """True if a browser indicates the request was initiated by a different site.
+
+    Primary signal is Fetch Metadata (Sec-Fetch-Site), sent by all modern browsers and not
+    settable by page scripts. Falls back to comparing Origin with the request host for older
+    browsers. Non-browser clients (curl, server-to-server) send neither and are allowed;
+    they still need a valid IAP assertion.
+    """
+    fetch_site = request.headers.get("sec-fetch-site")
+    if fetch_site is not None:
+        return fetch_site.lower() not in ALLOWED_FETCH_SITES
+
+    origin = request.headers.get("origin")
+    if origin is None:
+        return False
+    if origin == "null":
+        return True
+    host = request.headers.get("x-forwarded-host") or request.headers.get("host", "")
+    return urlsplit(origin).netloc.lower() != host.split(",")[0].strip().lower()
+
+@app.middleware("http")
+async def reject_cross_site_requests(request: Request, call_next):
+    """CSRF defense: block state-changing requests initiated by other sites."""
+    if request.method.upper() not in SAFE_METHODS and is_cross_site_request(request):
+        logger.warning(
+            f"Blocked cross-site {request.method} {request.url.path} "
+            f"(sec-fetch-site={request.headers.get('sec-fetch-site')}, origin={request.headers.get('origin')})"
+        )
+        return JSONResponse(status_code=403, content={"detail": "Cross-site request blocked"})
+    return await call_next(request)
 
 INDEX_HTML_PATH = os.path.join(os.path.dirname(__file__), "index.html")
 if not os.path.exists(INDEX_HTML_PATH):
@@ -29,17 +70,20 @@ if not os.path.exists(INDEX_HTML_PATH):
 
 CLOUD_RUN_BACKEND_URL = os.environ.get("CLOUD_RUN_BACKEND_URL", "https://fde-support-backend-883790454740.us-central1.run.app").rstrip("/")
 
-def get_iap_user_email(request: Request) -> str:
-    """Extracts authenticated user email injected by Google Cloud IAP."""
-    raw_header = request.headers.get("x-goog-authenticated-user-email", "").strip()
-    if raw_header:
-        return raw_header.replace("accounts.google.com:", "").strip()
-    return "authenticated_user@demo.com"
+# Resolves the end-user identity from the cryptographically verified IAP JWT assertion.
+# Never trust x-goog-authenticated-user-email or any client-supplied identity field.
+_resolve_identity = build_identity_resolver()
 
-import logging
-
-logger = logging.getLogger("frontend")
-logging.basicConfig(level=logging.INFO)
+async def require_identity(request: Request) -> IapIdentity:
+    """Returns the verified IAP identity or raises a generic 401 (fail closed)."""
+    try:
+        return await _resolve_identity(request.headers)
+    except IapAuthError as e:
+        logger.warning(f"Rejected request to {request.url.path}: {e}")
+        raise HTTPException(status_code=401, detail="Authentication required")
+    except Exception as e:
+        logger.error(f"IAP verification error on {request.url.path}: {type(e).__name__}")
+        raise HTTPException(status_code=401, detail="Authentication required")
 
 def get_id_token(audience: str = CLOUD_RUN_BACKEND_URL) -> str:
     # 1. Use official google.oauth2.id_token library
@@ -80,8 +124,8 @@ async def health():
 
 @app.get("/api/user/me")
 async def get_current_user(request: Request):
-    user_email = get_iap_user_email(request)
-    return {"user_email": user_email}
+    identity = await require_identity(request)
+    return {"user_email": identity.email}
 
 @app.get("/", response_class=HTMLResponse)
 @app.get("/index.html", response_class=HTMLResponse)
@@ -105,18 +149,28 @@ async def custom_404_handler(request: Request, exc):
         return await get_index()
     return JSONResponse(status_code=404, content={"detail": "Not Found"})
 
-@app.api_route("/api/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
+async def send_to_backend(method: str, url: str, headers: dict, params: dict, body: bytes) -> httpx.Response:
+    """Performs the upstream call to the backend (isolated for testability)."""
+    async with httpx.AsyncClient(timeout=120.0) as client:
+        return await client.request(method=method, url=url, headers=headers, params=params, content=body)
+
+@app.api_route("/api/{path:path}", methods=["GET", "POST"])
 async def proxy_to_cloud_run(path: str, request: Request):
-    user_email = get_iap_user_email(request)
+    # Authenticate BEFORE doing any upstream work.
+    identity = await require_identity(request)
+
     target_url = f"{CLOUD_RUN_BACKEND_URL}/api/{path}"
     token = get_id_token(CLOUD_RUN_BACKEND_URL)
     
-    # Clean forward_headers to avoid passing IAP/browser headers (like x-goog-iap-jwt-assertion)
-    # which cause Cloud Run IAM validation failures on the backend.
+    # Build upstream headers from scratch: browser/IAP headers (including any client-supplied
+    # X-User-Email) are never forwarded. The backend verifies the forwarded IAP assertion
+    # itself and takes the user's email from it (backend/caller_identity.py).
     forward_headers = {
         "Accept": request.headers.get("accept", "application/json"),
-        "X-User-Email": user_email,
     }
+    assertion = request.headers.get(IAP_ASSERTION_HEADER)
+    if assertion:
+        forward_headers[FORWARDED_IAP_ASSERTION_HEADER] = assertion  # already verified above; never logged
     if request.headers.get("content-type"):
         forward_headers["Content-Type"] = request.headers.get("content-type")
             
@@ -125,46 +179,33 @@ async def proxy_to_cloud_run(path: str, request: Request):
     else:
         logger.warning(f"No ID token available for backend request to {target_url}")
         
+    # Body is forwarded unchanged; the backend ignores any identity fields in it.
     body = await request.body()
-    
-    # Inject user_email into JSON body if missing customer_id
-    if body and request.method in ["POST", "PUT"]:
-        try:
-            payload = json.loads(body.decode("utf-8"))
-            if isinstance(payload, dict):
-                if not payload.get("customer_id") or payload.get("customer_id") in ["Not Set", "cust_default", ""]:
-                    payload["customer_id"] = user_email
-                body = json.dumps(payload).encode("utf-8")
-        except Exception:
-            pass
 
-    async with httpx.AsyncClient(timeout=120.0) as client:
-        try:
-            proxy_res = await client.request(
-                method=request.method,
-                url=target_url,
-                headers=forward_headers,
-                params=dict(request.query_params),
-                content=body
-            )
-            logger.info(f"[PROXY] {request.method} {target_url} -> status {proxy_res.status_code}")
+    try:
+        proxy_res = await send_to_backend(
+            method=request.method,
+            url=target_url,
+            headers=forward_headers,
+            params=dict(request.query_params),
+            body=body,
+        )
+    except Exception as e:
+        logger.error(f"[PROXY] Error forwarding to {target_url}: {type(e).__name__}: {e}")
+        return JSONResponse(status_code=502, content={"error": "Backend service is unavailable. Please try again later."})
+
+    logger.info(f"[PROXY] {request.method} {target_url} -> status {proxy_res.status_code}")
+    
+    response_headers = {}
+    for k, v in proxy_res.headers.items():
+        if k.lower() not in ["content-length", "content-encoding", "transfer-encoding"]:
+            response_headers[k] = v
             
-            response_headers = {}
-            for k, v in proxy_res.headers.items():
-                if k.lower() not in ["content-length", "content-encoding", "transfer-encoding"]:
-                    response_headers[k] = v
-                    
-            return Response(
-                content=proxy_res.content,
-                status_code=proxy_res.status_code,
-                headers=response_headers
-            )
-        except Exception as e:
-            logger.error(f"[PROXY] Error forwarding to {target_url}: {e}")
-            return JSONResponse(
-                status_code=502,
-                content={"error": f"Failed to connect to Cloud Run backend at {target_url}: {str(e)}"}
-            )
+    return Response(
+        content=proxy_res.content,
+        status_code=proxy_res.status_code,
+        headers=response_headers
+    )
 
 if __name__ == "__main__":
     import uvicorn
