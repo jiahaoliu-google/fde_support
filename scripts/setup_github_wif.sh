@@ -64,9 +64,18 @@ if ! gcloud iam workload-identity-pools providers describe "$PROVIDER_ID" --work
 fi
 
 echo "== Allow $GITHUB_REPO to impersonate $SA_EMAIL"
+PRINCIPAL_SET="principalSet://iam.googleapis.com/${POOL_NAME}/attribute.repository/${GITHUB_REPO}"
 gcloud iam service-accounts add-iam-policy-binding "$SA_EMAIL" --project "$PROJECT_ID" \
-  --role roles/iam.workloadIdentityUser \
-  --member "principalSet://iam.googleapis.com/${POOL_NAME}/attribute.repository/${GITHUB_REPO}" --quiet >/dev/null
+  --role roles/iam.workloadIdentityUser --member "$PRINCIPAL_SET" --quiet >/dev/null
+
+# Clients that set a quota project (the FAQ agent's search client does) send it on the
+# impersonation call to iamcredentials.googleapis.com as well. That call is made by the
+# federated GitHub identity, not the service account, so the identity itself needs
+# serviceusage.services.use, or it fails with 403 USER_PROJECT_DENIED.
+echo "== Allow $GITHUB_REPO to bill API calls to $PROJECT_ID (quota project)"
+gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+  --role roles/serviceusage.serviceUsageConsumer --member "$PRINCIPAL_SET" \
+  --condition None --quiet >/dev/null
 
 PROVIDER_NAME="$(gcloud iam workload-identity-pools providers describe "$PROVIDER_ID" \
   --workload-identity-pool "$POOL_ID" --location global --project "$PROJECT_ID" --format 'value(name)')"
