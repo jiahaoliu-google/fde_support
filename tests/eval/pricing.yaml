@@ -1,0 +1,34 @@
+# Model and service rates used by the evaluation cost metrics (M4).
+# Units: USD per 1M tokens (models) and USD per 1K queries (search).
+#
+# Source: Vertex AI generative AI pricing and Vertex AI Search pricing pages,
+# checked 2026-10-19 via web search. Re-verify before quoting numbers externally.
+#
+# Cost formula per model call (Gemini usage_metadata):
+#   uncached_input = prompt_token_count - cached_content_token_count
+#   output         = candidates_token_count + thoughts_token_count   # thinking is billed as output
+#   cost = uncached_input * input + cached * cached_input + output * output   (all / 1e6)
+# Rates below are the <=200K-token prompt tier; support prompts never approach 200K.
+
+models:
+  gemini-2.5-pro:            # FAQ Assistant (agents/faq_assistant/agent.py)
+    input: 1.25
+    output: 10.00
+    cached_input: 0.125
+  gemini-2.5-flash:          # Sentiment Router (agents/sentiment_router/agent.py)
+    input: 0.30
+    output: 2.50
+    cached_input: 0.03
+  gemini-3.5-flash:          # LLM judge named in the TDD (nightly semantic QA)
+    input: null              # TODO: rate not verified; fill in from the pricing page
+    output: null
+    cached_input: null
+
+search:
+  # Discovery Engine search called by search_support_records (agents/faq_assistant/tools.py).
+  # Set `edition` to match the fde-support-faq-datastore-v2 app configuration.
+  edition: standard          # TODO: confirm standard vs enterprise
+  per_1k_queries:
+    standard: 1.50
+    enterprise: 4.00
+  # The monthly free tier is ignored so that per-ticket cost stays comparable across runs.

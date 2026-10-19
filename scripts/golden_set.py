@@ -10,6 +10,7 @@ Uses an expanded negative keyword lexicon to classify customer queries from `arc
 - 10 Segment M: Multi-Turn Vague -> Clarified (Turn 1 clarify, Turn 2 grounded answer)
 """
 
+import html
 import os
 import json
 import re
@@ -22,6 +23,10 @@ OUTPUT_FILE = os.path.join(OUTPUT_DIR, "golden_set_v1.json")
 
 # Comprehensive lexicon of negative, escalation, anger, billing, and failure keywords
 URGENT_KEYWORDS = [
+    # Examples named in jliu_support_tdd.pdf (Sentiment Router Agent section)
+    "very upset", "upset", "late shipping", "late delivery", "charge error",
+    "billing error", "wrong charge",
+
     # Severe anger & dissatisfaction
     "worst", "unacceptable", "scam", "furious", "stolen", "terrible", "disaster",
     "frustrated", "ruined", "emergency", "broken", "never again", "horrible",
@@ -39,25 +44,102 @@ URGENT_KEYWORDS = [
     # Severe service / delivery failure
     "lost package", "damaged product", "damaged on arrival", "never arrived",
     "delayed for weeks", "no response for days", "ignored my messages",
-    "bribe", "demanding money"
+    "bribe", "demanding money",
+
+    # Profanity / hostile tone: never a neutral ticket
+    "fuck", "fucking", "fucked", "shit", "shitty", "wtf", "tf", "bullshit", "crap",
+    "damn", "pissed"
+]
+
+# Whole-word / whole-phrase patterns. Plain substring matching produced false
+# positives (e.g. "sue" inside "issue"), so every keyword is wrapped in \b and
+# multi-word phrases tolerate any run of whitespace between words.
+URGENT_PATTERNS = [
+    (kw, re.compile(r"\b" + r"\s+".join(map(re.escape, kw.split())) + r"\b", re.IGNORECASE))
+    for kw in URGENT_KEYWORDS
 ]
 
 
+def match_urgent_keywords(text: str) -> List[str]:
+    """Returns every urgent keyword that appears in `text` as a whole word/phrase."""
+    return [kw for kw, pattern in URGENT_PATTERNS if pattern.search(text)]
+
+
 def clean_text(text: str) -> str:
-    """Removes twitter handles and redundant whitespace."""
+    """Decodes HTML entities, removes twitter handles/URLs and redundant whitespace."""
+    text = html.unescape(text)
     text = re.sub(r'@[A-Za-z0-9_]+', '', text)
     text = re.sub(r'https?://\S+', '', text)
     text = re.sub(r'\s+', ' ', text).strip()
     return text
 
 
+# Sentences that carry no factual content: greetings, apologies, thanks,
+# sign-offs and bare "DM us" redirects. They must not become key facts.
+_NON_FACTUAL_RE = re.compile(
+    r"^(hi|hey|hello|thanks|thank you|sorry|apolog\w*|we('re| are) sorry|we apologi[sz]e|"
+    r"please accept our apolog\w*|we understand|we hear you|that'?s not what we|"
+    r"we'?d like to help|we want to help|happy to help|glad to help|let us help|"
+    r"we('re| are) here to help|have a (great|good|nice)|just to confirm|"
+    r"(please )?(send|shoot|drop) us a (dm|direct message|pm)|(please )?dm us|"
+    r"(please )?reach out|follow us|sure,? we can help|let'?s (look|take a look|check)|"
+    r"we('ll| will) (follow up|be in touch|get back)|we look forward|"
+    r"(please )?let us know|(please )?(provide|share|send) us|keep us posted|"
+    r"we('d| would) be happy|we('re| are) (happy|glad)|hope this helps|"
+    r"we'?d love to|let'?s take care|i'?d (also )?like to log|please keep looking)\b"
+    r"|\b(in|via|through|over) (a )?(dm|direct message|pm)\b|\bdm (me|us)\b|\bfollow and dm\b",
+    re.IGNORECASE,
+)
+_LEADING_GREETING_RE = re.compile(r"^(hi|hey|hello)(\s+[A-Z][\w'-]*)?\s*[,!.-]*\s*", re.IGNORECASE)
+_QUESTION_RE = re.compile(
+    r"\?|^(how|what|when|where|why|which|who|can|could|does|do|is|are|will|would|should)\b",
+    re.IGNORECASE,
+)
+
+
 def extract_key_facts(reference_text: str) -> List[str]:
-    """Extracts 1-3 atomic key facts from reference response text."""
-    clean = clean_text(reference_text)
-    sentences = [s.strip() for s in re.split(r'[.!?]', clean) if len(s.strip()) > 10]
-    if not sentences:
-        sentences = [clean]
-    return sentences[:3]
+    """Extracts up to 3 *factual* key facts from the reference reply.
+
+    Leading greetings ("Hi Karine,") are stripped, and greeting/apology/thanks/
+    "DM us" sentences are dropped. Returns [] when nothing factual remains, which
+    means the record is not usable as a search-ready test case.
+    """
+    raw = html.unescape(reference_text or "")
+    raw = re.sub(r"^(\s*@\w+)+", "", raw)  # leading reply handles are fine to drop
+    facts = []
+    for sentence in re.split(r"(?<=[.!?])\s+", raw):
+        if re.search(r"@\w+|https?://", sentence):
+            # Redirects to another account or a link: removing the handle/URL
+            # leaves a broken fragment, and the fact isn't answerable from text.
+            continue
+        s = _LEADING_GREETING_RE.sub("", clean_text(sentence)).strip(" .!")
+        if s.endswith("?"):
+            continue  # a question back to the customer is not a fact
+        if len(s.split()) < 4 or _NON_FACTUAL_RE.search(s):
+            continue
+        facts.append(s)
+    return facts[:3]
+
+
+def is_answerable_question(question: str) -> bool:
+    """A neutral, search-ready ticket must actually ask something."""
+    return bool(_QUESTION_RE.search(question.strip()))
+
+
+def fact_rubrics(key_facts: List[str]) -> List[Dict[str, Any]]:
+    """One rubric item per key fact, plus the grounding and policy items."""
+    rubrics = [
+        {"rubric_id": f"covers_fact_{i}",
+         "content": {"property": {"description": f"The answer conveys this fact (paraphrase is fine): {fact}"}}}
+        for i, fact in enumerate(key_facts, start=1)
+    ]
+    rubrics += [
+        {"rubric_id": "no_hallucination",
+         "content": {"property": {"description": "Every factual claim is supported by the search_support_records results in the trace; no invented policies, fees, timelines or contact details."}}},
+        {"rubric_id": "policy_compliance",
+         "content": {"property": {"description": "The answer does not show doc IDs, does not mention searching records or a knowledge base, and is not just a bare 'DM us' reply."}}},
+    ]
+    return rubrics
 
 
 def load_corpus() -> List[Dict[str, Any]]:
@@ -112,14 +194,25 @@ def build_golden_set() -> List[Dict[str, Any]]:
 
     for item in corpus:
         q_lower = item["question"].lower()
-        matched_kw = [kw for kw in URGENT_KEYWORDS if kw in q_lower]
+        matched_kw = match_urgent_keywords(q_lower)
         if matched_kw:
             item["matched_keyword"] = matched_kw[0]
+            item["matched_keywords"] = matched_kw
             urgent_candidates.append(item)
         else:
             normal_candidates.append(item)
 
     print(f"Found {len(urgent_candidates)} candidate tweets matching expanded negative keywords.")
+
+    # Neutral tickets eligible for the S/M segments: they must ask a real question
+    # and have a reply with at least one factual key fact.
+    answerable = []
+    for item in normal_candidates:
+        facts = extract_key_facts(item["raw_response"])
+        if facts and is_answerable_question(item["question"]):
+            item["key_facts"] = facts
+            answerable.append(item)
+    print(f"Found {len(answerable)} neutral, answerable records with factual key facts.")
 
     u_items = urgent_candidates[:25]
     if len(u_items) < 25:
@@ -151,7 +244,8 @@ def build_golden_set() -> List[Dict[str, Any]]:
             "key_facts": ["Customer ticket requires immediate human escalation due to urgency/frustration."],
             "classification_metadata": {
                 "method": "expanded_keyword_lexicon",
-                "matched_keyword": item.get("matched_keyword", "urgent_lexicon")
+                "matched_keyword": item.get("matched_keyword", "urgent_lexicon"),
+                "matched_keywords": item.get("matched_keywords", [item.get("matched_keyword", "urgent_lexicon")])
             },
             "rubric_groups": {
                 "case_rubrics": {"rubrics": [
@@ -163,10 +257,10 @@ def build_golden_set() -> List[Dict[str, Any]]:
     # -------------------------------------------------------------
     # 2. Segment S: Search-Ready, In-Corpus (45 cases)
     # -------------------------------------------------------------
-    s_items = normal_candidates[25:70]
+    s_items = answerable[:45]
     for idx, item in enumerate(s_items, start=1):
         case_id = f"S-{idx:03d}"
-        key_facts = extract_key_facts(item["response"])
+        key_facts = item["key_facts"]
         golden_cases.append({
             "eval_case_id": case_id,
             "segment": "S",
@@ -179,10 +273,9 @@ def build_golden_set() -> List[Dict[str, Any]]:
             "reference": {"response": {"role": "model", "parts": [{"text": item["response"]}]}},
             "key_facts": key_facts,
             "rubric_groups": {
-                "case_rubrics": {"rubrics": [
-                    {"rubric_id": "covers_fact_1", "content": {"property": {"description": f"Answer accurately conveys: {key_facts[0]}"}}},
-                    {"rubric_id": "no_hallucination", "content": {"property": {"description": "Answer stays grounded to the retrieved RAG records and does not invent unstated policies."}}}
-                ]}
+                # Single group: built-in metrics reject instances with several groups.
+                # The recall judge reads only the covers_fact_* items.
+                "case_rubrics": {"rubrics": fact_rubrics(key_facts)},
             }
         })
 
@@ -263,10 +356,10 @@ def build_golden_set() -> List[Dict[str, Any]]:
     # -------------------------------------------------------------
     # 5. Segment M: Multi-Turn Vague -> Clarified (10 cases)
     # -------------------------------------------------------------
-    m_items = normal_candidates[70:80]
+    m_items = answerable[45:55]
     for idx, item in enumerate(m_items, start=1):
         case_id = f"M-{idx:03d}"
-        key_facts = extract_key_facts(item["response"])
+        key_facts = item["key_facts"]
         golden_cases.append({
             "eval_case_id": case_id,
             "segment": "M",
@@ -294,9 +387,8 @@ def build_golden_set() -> List[Dict[str, Any]]:
             "reference": {"response": {"role": "model", "parts": [{"text": item["response"]}]}},
             "key_facts": key_facts,
             "rubric_groups": {
-                "case_rubrics": {"rubrics": [
-                    {"rubric_id": "multi_turn_continuity", "content": {"property": {"description": "Clarifies in turn 1 then provides grounded answer in turn 2 using full context."}}}
-                ]}
+                # Scored on the turn-2 answer only (turn 1 is a clarifying question).
+                "case_rubrics": {"rubrics": fact_rubrics(key_facts)},
             }
         })
 

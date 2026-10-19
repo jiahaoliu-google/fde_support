@@ -1,0 +1,83 @@
+# agents-cli grading config for the FAQ answer rubric.
+#
+# SCOPE: use ONLY with tests/eval/datasets/faq_rubric_dataset.json, which
+# scripts/build_eval_datasets.py restricts to neutral, search-ready tickets
+# (segments S, O, M). Urgent (U) and vague (V) tickets are never graded here.
+# `rubric_scope_check` fails any case that is out of scope, as a second guard.
+#
+#   agents-cli eval generate --dataset tests/eval/datasets/faq_rubric_dataset.json -o artifacts/traces/faq_rubric
+#   agents-cli eval grade --traces artifacts/traces/faq_rubric --config tests/eval/eval_config_faq_rubric.yaml
+#
+# Judge: Gemini 3.5 Flash, per the TDD (Semantic QA Evaluation).
+
+metrics_to_run:
+  - rubric_scope_check          # code: case is neutral + search-ready
+  - hallucination               # built-in: claims vs. tool output in the trace
+  - rag_faithfulness            # LLM: TDD faithfulness (hallucinations + policy)
+  - grounding_key_fact_recall   # LLM: TDD grounding recall
+  - case_rubric_adherence       # LLM: per-case rubric items
+
+custom_metrics:
+  - name: rubric_scope_check
+    custom_function: |
+      def evaluate(instance):
+          neutral = instance.get("expected_sentiment") == "NEUTRAL_FACTUAL"
+          ready = instance.get("search_ready") is True
+          ok = neutral and ready and instance.get("segment") not in ("U", "V")
+          return {"score": 1.0 if ok else 0.0,
+                  "explanation": "in scope" if ok else "OUT OF SCOPE: rubric applies only to neutral, search-ready tickets"}
+
+  - name: rag_faithfulness
+    judge_model: projects/fde-support-sandbox-dev-jliu/locations/global/publishers/google/models/gemini-3.5-flash
+    judge_model_sampling_count: 3
+    prompt_template: |
+      You grade a customer-support answer for FAITHFULNESS.
+      The ticket is neutral and ready to answer, so the agent was expected to search and answer.
+
+      User message: {prompt}
+      Agent final answer: {response}
+      Full trace (the search_support_records function_response holds the ONLY allowed evidence): {agent_data}
+
+      Steps:
+      1. List every factual claim in the answer (steps, timelines, fees, policies, contact details).
+      2. Mark each claim SUPPORTED only if the search_support_records or get_order_status results
+         in the trace state it. General courtesy ("happy to help") is not a claim.
+      3. Policy violations make the score 0, regardless of step 2:
+         - shows internal doc IDs such as twcs_123
+         - mentions searching records, a knowledge base, or other customers' tickets
+         - is only "DM us" with no help, although the search results contained an answer
+      4. If no records were relevant, the only faithful answer says no documented answer was
+         found and offers a human agent.
+
+      score = supported claims / total claims (1.0 if there are no claims and no violation).
+      Return JSON: {"score": <0.0-1.0>, "explanation": "<claim-by-claim verdicts and any violation>"}
+
+  - name: grounding_key_fact_recall
+    judge_model: projects/fde-support-sandbox-dev-jliu/locations/global/publishers/google/models/gemini-3.5-flash
+    judge_model_sampling_count: 3
+    prompt_template: |
+      You check whether a customer-support answer covers the expected key facts.
+
+      User message: {prompt}
+      Agent final answer: {response}
+      Expected key facts (JSON list): {key_facts}
+
+      For EACH key fact, answer PRESENT if the answer conveys the same information
+      (paraphrase is fine), otherwise ABSENT.
+      score = PRESENT / total key facts.
+      Return JSON: {"score": <0.0-1.0>, "explanation": "<fact-by-fact PRESENT/ABSENT>"}
+
+  - name: case_rubric_adherence
+    judge_model: projects/fde-support-sandbox-dev-jliu/locations/global/publishers/google/models/gemini-3.5-flash
+    judge_model_sampling_count: 3
+    prompt_template: |
+      You grade a customer-support answer against the rubric for this specific ticket.
+
+      User message: {prompt}
+      Agent final answer: {response}
+      Full trace, including search results: {agent_data}
+      Rubric items (JSON list of "id: requirement"): {rubric_items}
+
+      Mark each rubric item PASS or FAIL, using only the trace as evidence.
+      score = PASS / total rubric items.
+      Return JSON: {"score": <0.0-1.0>, "explanation": "<item-by-item PASS/FAIL with a reason>"}
