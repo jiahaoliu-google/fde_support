@@ -275,6 +275,37 @@ class TestRunCase(unittest.TestCase):
         self.assertIsNone(r["cost_usd"])
         self.assertIn("unpriced-model", r["cost_unpriced_reason"])
 
+    def test_sessions_created_before_running(self):
+        """Regression: CI's ADK had no Runner(auto_create_session=...). Sessions must exist
+        before run_async, whether create_session is sync (ADK 0.x) or async (>=1.0)."""
+        for is_async in (True, False):
+            created = []
+
+            class Svc:
+                def create_session(self, app_name, user_id, session_id):
+                    created.append((app_name, session_id))
+                    if is_async:
+                        async def done():
+                            return None
+                        return done()
+
+            class SessionCheckingRunner(FakeRunner):
+                def __init__(self, script, app_name):
+                    super().__init__(script)
+                    self.session_service, self.app_name = Svc(), app_name
+
+                async def run_async(self, user_id, session_id, new_message):
+                    assert (self.app_name, session_id) in created, "session not created"
+                    async for e in super().run_async(user_id, session_id, new_message):
+                        yield e
+
+            sent = SessionCheckingRunner(sentiment_script(lambda m: N), "s")
+            faq = SessionCheckingRunner(faq_script, "f")
+            r = run(ri.run_case(golden("M-3", "M", N, turns=["a", "b"]), sent, faq, MODELS, PRICING, 10))
+            self.assertFalse(r["errored"], r)
+            self.assertEqual(sum(1 for a, _ in created if a == "s"), 2)   # one per message
+            self.assertEqual(sum(1 for a, _ in created if a == "f"), 1)   # one per conversation
+
 
 def _results():
     cases = [golden(f"U-{i}", "U", U) for i in range(4)] + [golden(f"S-{i}", "S", N) for i in range(6)]

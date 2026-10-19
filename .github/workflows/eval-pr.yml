@@ -112,6 +112,8 @@ jobs:
                       pyyaml
           # agents-cli in its own environment so it can't change the agents' dependency versions.
           pipx install google-agents-cli==1.3.0
+          # Requirements are unpinned: log what was resolved so CI vs. local drift is visible.
+          python -c "import importlib.metadata as m; [print(p, m.version(p)) for p in ('google-adk', 'google-genai', 'google-cloud-discoveryengine')]"
 
       - name: Run agents on all golden tickets (PR code, in-process)
         id: infer

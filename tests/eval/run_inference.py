@@ -31,6 +31,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import hashlib
+import inspect
 import json
 import os
 import subprocess
@@ -227,6 +228,18 @@ def turn_cost(turn: Optional[dict], pricing: dict) -> tuple[Optional[float], Opt
     return model_cost + s_cost, None
 
 
+async def create_session(runner: Any, session_id: str) -> None:
+    """Creates the session up front. Works across ADK versions: `create_session` is sync in
+    0.x and async in >=1.0, and `Runner(auto_create_session=...)` doesn't exist everywhere.
+    Runners without a session service (test fakes) are skipped."""
+    svc = getattr(runner, "session_service", None)
+    if svc is None:
+        return
+    result = svc.create_session(app_name=runner.app_name, user_id=EVAL_USER_ID, session_id=session_id)
+    if inspect.isawaitable(result):
+        await result
+
+
 # ---------------------------------------------------------------------------
 # One golden case: what the production pipeline would do with each message
 # ---------------------------------------------------------------------------
@@ -239,11 +252,15 @@ async def run_case(case: dict, sentiment_runner: Any, faq_runner: Optional[Any],
     decided the route.
     """
     faq_session = f"eval-{case['eval_case_id']}-{uuid.uuid4().hex[:8]}"
+    if faq_runner is not None:
+        await create_session(faq_runner, faq_session)
     turns_out = []
     predicted = km.NEUTRAL
     for i, message in enumerate(user_turns(case), start=1):
         # Fresh sentiment session per message, like the backend (s-<uuid>).
-        s_turn = await run_agent_turn(sentiment_runner, models["sentiment"], f"s-{uuid.uuid4().hex}",
+        sentiment_session = f"s-{uuid.uuid4().hex}"
+        await create_session(sentiment_runner, sentiment_session)
+        s_turn = await run_agent_turn(sentiment_runner, models["sentiment"], sentiment_session,
                                       message, timeout_s)
         label = km.ERROR if s_turn["error"] else parse_sentiment_label(s_turn["final_text"])
         t = {"turn": i, "message": message, "sentiment_label": label, "sentiment": s_turn, "faq": None,
@@ -486,14 +503,16 @@ def build_runners(suite: str):
     from agents.sentiment_router.agent import sentiment_router_agent
 
     models = {"sentiment": str(sentiment_router_agent.model)}
+    # Sessions are created explicitly in run_case (see create_session), not via
+    # Runner(auto_create_session=...), which only some ADK versions accept.
     sentiment = Runner(app_name="eval_sentiment", agent=sentiment_router_agent,
-                       session_service=InMemorySessionService(), auto_create_session=True)
+                       session_service=InMemorySessionService())
     faq, faq_info = None, None
     if suite == "full":
         from agents.faq_assistant.agent import faq_assistant_agent
         models["faq"] = str(faq_assistant_agent.model)
         faq = Runner(app_name="eval_faq", agent=faq_assistant_agent,
-                     session_service=InMemorySessionService(), auto_create_session=True)
+                     session_service=InMemorySessionService())
         faq_info = agent_descriptor(faq_assistant_agent)
     return sentiment, faq, models, faq_info
 
