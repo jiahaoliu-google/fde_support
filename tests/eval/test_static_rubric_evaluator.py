@@ -10,7 +10,9 @@ import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+sys.path.insert(0, os.path.join(HERE, "..", "..", "scripts", "eval"))
 sys.path.insert(0, os.path.join(HERE, "..", "..", "scripts"))
+
 
 import static_rubric_evaluator as sre  # noqa: E402
 from golden_set import match_urgent_keywords  # noqa: E402

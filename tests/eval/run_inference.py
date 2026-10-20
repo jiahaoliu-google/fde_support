@@ -1,21 +1,31 @@
 #!/usr/bin/env python3
 """Pre-deployment agent eval: runs the golden set through the agents in-process.
 
-Measures, from the actual run (nothing hard-coded):
-  * routing: sentiment_router_agent label vs. golden expected_sentiment (all cases)
-  * latency: per-turn agent latency (sentiment + FAQ when routed to FAQ), search tool time
-  * errors:  agent call exceptions / timeouts / 429s, and tool-level search errors
-  * tokens + cost: Gemini usage_metadata x rates in tests/eval/pricing.yaml, plus search fees
+Each customer message goes through the same steps as POST /api/chat:
+  Model Armor redaction -> sentiment agent -> Cloud SQL ticket write -> (NEUTRAL only)
+  FAQ agent -> Cloud SQL reply write.
+
+Measured from the actual run (nothing hard-coded):
+  TDD KPIs (gated)
+    T1  routing accuracy          sentiment label vs. golden expected_sentiment   >= 95%
+    T3  ticket-state write p95    _sync_ticket / record_turn on the eval DB        <= 100 ms
+                                  (judged only on PostgreSQL / Cloud SQL)
+    T5  Urgent/Frustrated F1                                                       >= 0.95
+    (T4, T6, T7, T8 are graded from traces.json by agents-cli and the report)
+  No TDD / Scoping target (reported only)
+    latency of the sentiment agent, FAQ agent and Model Armor redaction
+    tokens + cost: Gemini usage_metadata x tests/eval/pricing.yaml, plus search fees
 
 The agents run locally with ADK Runner + InMemorySessionService (the same agent objects
 that get deployed), against real Vertex AI Gemini and the real Discovery Engine datastore.
-Latency therefore excludes Agent Runtime / Cloud Run / network hops and the backend's
-Model Armor redaction + Cloud SQL writes: it's the agent cost you can optimize before deploy.
+Agents receive the redacted message, as in production.
 
 Usage (needs `gcloud auth application-default login`):
   python tests/eval/run_inference.py                       # full: router + FAQ, all 100 cases
   python tests/eval/run_inference.py --suite router        # router only (cheap, ~100 flash calls)
   python tests/eval/run_inference.py --limit 10 --concurrency 2
+  python tests/eval/run_inference.py --db-url postgresql+psycopg2://USER:PASS@127.0.0.1:5432/DB
+                                                           # T3 on Cloud SQL via cloud-sql-proxy
   python tests/eval/run_inference.py --enforce-gates       # exit 1 if a KPI gate fails
 
 Writes artifacts/eval/<UTC timestamp>/:
@@ -24,7 +34,7 @@ Writes artifacts/eval/<UTC timestamp>/:
   traces.json            (full suite) the FAQ answers of this run for the neutral, search-ready
                          tickets, in agents-cli grading format, for `agents-cli eval grade`
   traces_manifest.json   which in-scope tickets were judged, and why the others weren't
-scripts/generate_kpi_report.py --run-dir <dir> builds the report from that one directory.
+scripts/eval/generate_kpi_report.py --run-dir <dir> builds the report from that one directory.
 """
 from __future__ import annotations
 
@@ -47,6 +57,7 @@ sys.path.insert(0, HERE)
 sys.path.insert(0, REPO_ROOT)
 
 import kpi_metrics as km  # noqa: E402
+from backend_probe import OP_AGENT_REPLY, OP_FALLBACK  # noqa: E402  (stdlib-only at import time)
 
 DEFAULT_GOLDEN = os.path.join(HERE, "golden", "golden_set_v1.json")
 DEFAULT_OUT_ROOT = os.path.join(REPO_ROOT, "artifacts", "eval")
@@ -244,8 +255,12 @@ async def create_session(runner: Any, session_id: str) -> None:
 # One golden case: what the production pipeline would do with each message
 # ---------------------------------------------------------------------------
 async def run_case(case: dict, sentiment_runner: Any, faq_runner: Optional[Any], models: dict,
-                   pricing: dict, timeout_s: float) -> dict:
-    """Mirrors /api/chat routing per message: classify, then FAQ only if NEUTRAL.
+                   pricing: dict, timeout_s: float, probe: Optional[Any] = None) -> dict:
+    """Mirrors /api/chat per message: redact, classify, write the ticket, then FAQ only if
+    NEUTRAL and write its reply.
+
+    `probe` (tests/eval/backend_probe.BackendProbe) runs the real redaction and Cloud SQL
+    writes; without it only the agents run and T3 / redaction are not measured.
 
     An URGENT, INVALID or failed classification escalates the ticket (fail closed), so
     later scripted turns aren't sent. The case-level prediction is the label that
@@ -254,9 +269,16 @@ async def run_case(case: dict, sentiment_runner: Any, faq_runner: Optional[Any],
     faq_session = f"eval-{case['eval_case_id']}-{uuid.uuid4().hex[:8]}"
     if faq_runner is not None:
         await create_session(faq_runner, faq_session)
+    ticket_id = probe.new_ticket_id() if probe else None
+    ticket_status: Optional[str] = None   # None: no ticket yet (first message)
     turns_out = []
     predicted = km.NEUTRAL
-    for i, message in enumerate(user_turns(case), start=1):
+    for i, raw_message in enumerate(user_turns(case), start=1):
+        redaction, db_writes = None, []
+        message = raw_message
+        if probe:
+            message, redaction = await probe.redact(raw_message)
+
         # Fresh sentiment session per message, like the backend (s-<uuid>).
         sentiment_session = f"s-{uuid.uuid4().hex}"
         await create_session(sentiment_runner, sentiment_session)
@@ -264,7 +286,18 @@ async def run_case(case: dict, sentiment_runner: Any, faq_runner: Optional[Any],
                                       message, timeout_s)
         label = km.ERROR if s_turn["error"] else parse_sentiment_label(s_turn["final_text"])
         t = {"turn": i, "message": message, "sentiment_label": label, "sentiment": s_turn, "faq": None,
-             "route": "FAQ_AGENT" if label == km.NEUTRAL else "HUMAN_QUEUE"}
+             "route": "FAQ_AGENT" if label == km.NEUTRAL else "HUMAN_QUEUE",
+             "redaction": redaction, "db_writes": db_writes}
+
+        if probe:
+            failed = label not in km.SENTIMENT_LABELS   # INVALID / ERROR: backend fails closed
+            urgent = label != km.NEUTRAL
+            status, rec = await probe.sync_ticket(
+                ticket_id, existing_status=ticket_status, message=message,
+                sentiment=label if not failed else km.NEUTRAL, sentiment_failed=failed,
+                calming_ack=probe.urgent_ack(failed) if urgent else None)
+            db_writes.append(rec)
+            ticket_status = status or ticket_status
 
         if label == km.NEUTRAL and faq_runner is not None:
             f_turn = await run_agent_turn(faq_runner, models["faq"], faq_session, message, timeout_s)
@@ -274,6 +307,15 @@ async def run_case(case: dict, sentiment_runner: Any, faq_runner: Optional[Any],
             f_turn["escalate"] = parsed.get("escalate") if parsed else None
             f_turn["grounded"] = parsed.get("grounded") if parsed else None
             t["faq"] = f_turn
+            if probe and ticket_status is not None:
+                if parsed:
+                    status, rec = await probe.record_turn(OP_AGENT_REPLY, ticket_id, "AGENT", parsed["answer"],
+                                                          bool(parsed.get("escalate")))
+                else:   # no usable answer: the backend's outage fallback to the human queue
+                    status, rec = await probe.record_turn(OP_FALLBACK, ticket_id, "SYSTEM",
+                                                          probe.outage_fallback_answer, True)
+                db_writes.append(rec)
+                ticket_status = status or ticket_status
 
         parts = [x for x in (t["sentiment"], t["faq"]) if x]
         t["latency_s"] = sum(x["latency_s"] or 0.0 for x in parts)
@@ -308,7 +350,11 @@ async def run_case(case: dict, sentiment_runner: Any, faq_runner: Optional[Any],
 # Aggregation
 # ---------------------------------------------------------------------------
 def summarize(results: list[dict], pricing: dict, run_info: dict) -> dict:
-    """Run-level KPIs from per-case results (pure; unit-tested)."""
+    """Run-level KPIs from per-case results (pure; unit-tested).
+
+    Gates exist only for TDD targets (T1, T3, T5). Latency, tokens and cost have no
+    TDD / Scoping target and are reported as measured values only.
+    """
     routing = km.classification_report((r["expected_sentiment"], r["predicted_sentiment"]) for r in results)
     urgent = routing["per_class"][km.URGENT]
 
@@ -316,11 +362,18 @@ def summarize(results: list[dict], pricing: dict, run_info: dict) -> dict:
     agent_turns = [x for t in turns for x in (t["sentiment"], t["faq"]) if x]
     faq_turns = [t["faq"] for t in turns if t["faq"]]
     searches = [s for f in faq_turns for s in f["search_calls"]]
+    redactions = [t["redaction"] for t in turns if t.get("redaction")]
+    writes = [w for t in turns for w in (t.get("db_writes") or [])]
 
-    e2e = km.latency_summary(t["latency_s"] for t in turns if not _turn_errored(t))
-    sentiment_lat = km.latency_summary(t["sentiment"]["latency_s"] for t in turns if not t["sentiment"]["error"])
-    faq_lat = km.latency_summary(f["latency_s"] for f in faq_turns if not f["error"])
-    search_lat = km.latency_summary(s["latency_s"] for s in searches if s["latency_s"] is not None)
+    latency = {
+        "sentiment_agent_s": km.latency_summary(
+            t["sentiment"]["latency_s"] for t in turns if not t["sentiment"]["error"]),
+        "faq_agent_s": km.latency_summary(f["latency_s"] for f in faq_turns if not f["error"]),
+        "model_armor_redaction_ms": km.latency_summary(r["latency_ms"] for r in redactions),
+        "db_write_ms": km.latency_summary(w["latency_ms"] for w in writes if not w.get("error")),  # T3
+    }
+    db = run_info.get("db") or {}
+    t3_gated = db.get("dialect") in km.T3_GATED_DIALECTS
 
     error_types: dict[str, int] = {}
     for x in agent_turns:
@@ -331,17 +384,18 @@ def summarize(results: list[dict], pricing: dict, run_info: dict) -> dict:
         if s["status"] == "error":
             k = s["error_type"] or "unknown"
             search_errors[k] = search_errors.get(k, 0) + 1
-    n_err_calls = sum(error_types.values())
+    # Counts only, no target: they explain ERROR predictions in T1/T5 and missing answers.
     errors = {
         "agent_calls": len(agent_turns),
-        "agent_call_errors": n_err_calls,
-        "error_rate": km._safe_div(n_err_calls, len(agent_turns)),
+        "agent_call_errors": sum(error_types.values()),
         "by_type": error_types,
         "cases_with_errors": sum(1 for r in results if r["errored"]),
         "search_calls": len(searches),
         "search_tool_errors": search_errors,
         "invalid_sentiment_outputs": routing["invalid_predictions"],
         "invalid_faq_outputs": sum(1 for f in faq_turns if not f["error"] and not f.get("output_valid")),
+        "db_writes": len(writes),
+        "db_write_errors": sum(1 for w in writes if w.get("error")),
     }
 
     tokens = {"sentiment": km.empty_usage(), "faq": km.empty_usage()}
@@ -372,13 +426,13 @@ def summarize(results: list[dict], pricing: dict, run_info: dict) -> dict:
     }
 
     targets = km.KPI_TARGETS
+    db_p95 = latency["db_write_ms"] and latency["db_write_ms"]["p95"]
     gates = {
-        "routing_accuracy": km.gate(routing["accuracy"], targets["routing_accuracy"]),
-        "urgent_f1": km.gate(urgent["f1"], targets["urgent_f1"]),
-        "e2e_latency_p95_s": km.gate(e2e and e2e["p95"], targets["e2e_latency_p95_s"], higher_is_better=False),
-        "search_latency_p95_s": km.gate(search_lat and search_lat["p95"], targets["search_latency_p95_s"],
-                                        higher_is_better=False),
-        "error_rate": km.gate(errors["error_rate"], targets["error_rate"], higher_is_better=False),
+        "routing_accuracy": km.gate(routing["accuracy"], targets["routing_accuracy"]),        # T1
+        "urgent_f1": km.gate(urgent["f1"], targets["urgent_f1"]),                             # T5
+        # T3: judged only on Cloud SQL (PostgreSQL); measured but not judged elsewhere.
+        "db_write_p95_ms": (km.gate(db_p95, targets["db_write_p95_ms"], higher_is_better=False)
+                            if t3_gated else None),
     }
 
     misrouted = [
@@ -387,32 +441,26 @@ def summarize(results: list[dict], pricing: dict, run_info: dict) -> dict:
          "error_types": r["error_types"]}
         for r in results if r["expected_sentiment"] != r["predicted_sentiment"]
     ]
-    slowest = sorted(
-        ({"eval_case_id": r["eval_case_id"], "turn": t["turn"], "latency_s": t["latency_s"],
-          "route": t["route"], "search_calls": len(t["faq"]["search_calls"]) if t["faq"] else 0}
-         for r in results for t in r["turns"]),
-        key=lambda x: x["latency_s"] or 0, reverse=True)[:5]
 
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "run": run_info,
         "n_cases": len(results),
         "n_turns": len(turns),
         "segments": _count(r["segment"] for r in results),
         "routing": routing,
-        "latency_s": {"e2e_turn": e2e, "sentiment": sentiment_lat, "faq": faq_lat, "search_tool": search_lat},
+        "latency": latency,
+        "db": {**db, "t3_gated": t3_gated},
+        "model_armor": {"path": (redactions[0]["path"] if redactions else None),
+                        "messages": len(redactions),
+                        "messages_changed": sum(1 for r in redactions if r["changed"])},
         "errors": errors,
         "tokens": tokens,
         "cost": cost,
         "targets": targets,
         "gates": gates,
         "misrouted": misrouted,
-        "slowest_turns": slowest,
     }
-
-
-def _turn_errored(t: dict) -> bool:
-    return bool(t["sentiment"]["error"] or (t["faq"] and t["faq"]["error"]))
 
 
 def _count(values) -> dict:
@@ -465,7 +513,8 @@ def build_traces(cases: list[dict], results: list[dict], faq_agent_info: dict) -
     the judges; `responses` is the final FAQ answer and `agent_data.turns` holds every
     user message, tool call, tool response and answer of the conversation.
     """
-    from scripts.build_eval_datasets import in_rubric_scope, to_inference_case
+    from scripts.eval.build_eval_datasets import in_rubric_scope, to_inference_case
+
 
     by_id = {r["eval_case_id"]: r for r in results}
     agent_id = faq_agent_info["agent_id"]
@@ -522,14 +571,14 @@ def build_runners(suite: str):
 
 
 async def run_all(cases: list[dict], sentiment_runner, faq_runner, models, pricing,
-                  concurrency: int, timeout_s: float) -> list[dict]:
+                  concurrency: int, timeout_s: float, probe: Optional[Any] = None) -> list[dict]:
     sem = asyncio.Semaphore(concurrency)
     done = 0
 
     async def one(case):
         nonlocal done
         async with sem:
-            r = await run_case(case, sentiment_runner, faq_runner, models, pricing, timeout_s)
+            r = await run_case(case, sentiment_runner, faq_runner, models, pricing, timeout_s, probe)
         done += 1
         flag = "ERR" if r["errored"] else ("ok" if r["expected_sentiment"] == r["predicted_sentiment"] else "MISROUTED")
         print(f"[{done:3d}/{len(cases)}] {r['eval_case_id']:6s} {r['predicted_sentiment']:18s} {flag}", flush=True)
@@ -542,20 +591,26 @@ async def run_all(cases: list[dict], sentiment_runner, faq_runner, models, prici
 
 def print_summary(s: dict) -> None:
     def pct(v): return "n/a" if v is None else f"{v * 100:.1f}%"
-    def sec(v): return "n/a" if v is None else f"{v:.2f}s"
-    def gate(k): return {True: "PASS", False: "FAIL", None: "NOT MEASURED"}[s["gates"][k]]
+    def p95(d, unit, scale=1.0, digits=2):
+        return "n/a" if not d else f"{d['p95'] * scale:.{digits}f}{unit}"
+    def gate(k): return {True: "PASS", False: "FAIL", None: "NOT JUDGED"}[s["gates"][k]]
     urgent = s["routing"]["per_class"][km.URGENT]
-    lat = s["latency_s"]
+    lat = s["latency"]
+    db = s["db"]
+    t3 = gate("db_write_p95_ms") if db.get("t3_gated") else f"not judged ({db.get('dialect') or 'no DB'})"
     print("\n" + "=" * 64)
     print(f" {s['n_cases']} cases / {s['n_turns']} turns  ({s['run']['suite']} suite)")
-    print(f" Routing accuracy    {pct(s['routing']['accuracy']):>8}   {gate('routing_accuracy')}")
+    print(f" T1 Routing accuracy     {pct(s['routing']['accuracy']):>10}   {gate('routing_accuracy')}")
     f1 = "n/a" if urgent["f1"] is None else f"{urgent['f1']:.3f}"
-    print(f" Urgent F1           {f1:>8}   {gate('urgent_f1')}")
-    print(f" E2E turn P95        {sec(lat['e2e_turn'] and lat['e2e_turn']['p95']):>8}   {gate('e2e_latency_p95_s')}")
-    print(f" Search tool P95     {sec(lat['search_tool'] and lat['search_tool']['p95']):>8}   {gate('search_latency_p95_s')}")
-    print(f" Agent error rate    {pct(s['errors']['error_rate']):>8}   {gate('error_rate')}")
+    print(f" T5 Urgent F1            {f1:>10}   {gate('urgent_f1')}")
+    print(f" T3 DB write P95         {p95(lat['db_write_ms'], ' ms', digits=1):>10}   {t3}")
+    print(" -- no target --")
+    print(f" Sentiment agent P95     {p95(lat['sentiment_agent_s'], 's'):>10}")
+    print(f" FAQ agent P95           {p95(lat['faq_agent_s'], 's'):>10}")
+    print(f" Model Armor P95         {p95(lat['model_armor_redaction_ms'], ' ms', digits=2):>10}"
+          f"   ({s['model_armor']['path'] or 'not run'})")
     c = s["cost"]["per_1k_tickets_usd"]
-    print(f" Cost / 1K tickets   {'n/a' if c is None else f'${c:.2f}':>8}   (report only)")
+    print(f" Cost / 1K tickets       {'n/a' if c is None else f'${c:.2f}':>10}")
     print("=" * 64)
 
 
@@ -571,6 +626,11 @@ def main(argv: Optional[list[str]] = None) -> int:
     p.add_argument("--timeout", type=float, default=60.0, help="per agent call, seconds")
     p.add_argument("--pricing", default=km.DEFAULT_PRICING_PATH)
     p.add_argument("--out-root", default=DEFAULT_OUT_ROOT)
+    p.add_argument("--db-url", default=os.getenv("EVAL_DATABASE_URL"),
+                   help="database for T3 ticket writes (default: throw-away SQLite, T3 not judged). "
+                        "Use a PostgreSQL / Cloud SQL URL to judge T3. Also read from $EVAL_DATABASE_URL.")
+    p.add_argument("--keep-db-rows", action="store_true",
+                   help="don't delete this run's eval-* tickets from an external --db-url")
     p.add_argument("--enforce-gates", action="store_true", help="exit 1 if any measured gate fails")
     p.add_argument("--github-output", action="store_true",
                    help="write run_dir=<path> to $GITHUB_OUTPUT for later workflow steps")
@@ -590,10 +650,15 @@ def main(argv: Optional[list[str]] = None) -> int:
     pricing = km.load_pricing(args.pricing)
     sentiment_runner, faq_runner, models, faq_info = build_runners(args.suite)
 
+    from backend_probe import BackendProbe
+    probe = BackendProbe(args.db_url, keep_rows=args.keep_db_rows)
     started = datetime.now(timezone.utc)
     t0 = time.perf_counter()
-    results = asyncio.run(run_all(cases, sentiment_runner, faq_runner, models, pricing,
-                                  args.concurrency, args.timeout))
+    try:
+        results = asyncio.run(run_all(cases, sentiment_runner, faq_runner, models, pricing,
+                                      args.concurrency, args.timeout, probe))
+    finally:
+        probe.close()
     run_info = {
         "started_at": started.isoformat(),
         "duration_s": round(time.perf_counter() - t0, 2),
@@ -608,6 +673,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         "git_revision": git_revision(),
         "target": "in-process (ADK Runner, InMemorySessionService)",
         "pricing_file": os.path.relpath(args.pricing, REPO_ROOT),
+        "db": {"dialect": probe.dialect, "url": probe.url},
     }
     summary = summarize(results, pricing, run_info)
 

@@ -1,0 +1,74 @@
+# Unit tests + 80% line-coverage gate on every push and every PR to main.
+#
+# Offline: no GCP credentials, no paid calls. The agent eval (eval-pr.yml) is separate and
+# runs on PRs only.
+#
+# The coverage scope and threshold live in .coveragerc (app code only: backend, agents,
+# common, frontend). The job fails if coverage is below `fail_under`.
+#
+# To block merges on it: Settings → Branches → protect `main` → require the
+# "Tests & coverage" status check.
+name: Tests & coverage
+
+on:
+  push:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# A newer push to the same branch / PR cancels the older run.
+concurrency:
+  group: tests-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    name: Tests & coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            agents/faq_assistant/requirements.txt
+            agents/sentiment_router/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt \
+                      -r agents/faq_assistant/requirements.txt \
+                      -r agents/sentiment_router/requirements.txt \
+                      pyyaml
+
+      - name: Run tests with coverage gate (≥ 80% line coverage, app code)
+        env:
+          DATABASE_URL: "sqlite:///./test_local.db"
+        run: pytest --cov --cov-report=term-missing --cov-report=xml
+
+      - name: Coverage summary
+        if: ${{ always() && hashFiles('coverage.xml') != '' }}
+        run: |
+          {
+            echo "## Code coverage (app code, line)"
+            echo
+            echo '```'
+            coverage report --skip-covered
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload coverage.xml
+        if: ${{ always() && hashFiles('coverage.xml') != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.xml
+          retention-days: 14
