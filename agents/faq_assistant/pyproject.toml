@@ -5,7 +5,7 @@ description = "FAQ Assistant Agent for FDE Support System"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "google-adk[gcp]>=0.1.0",
+    "google-adk[gcp]>=2.10.0,<3",
     "google-cloud-aiplatform>=1.70.0",
     "google-genai>=0.1.1",
     "google-cloud-discoveryengine>=0.13.0",
