@@ -1,7 +1,7 @@
 """Support-chat pipeline behind POST /api/chat.
 
-One customer turn: ownership check -> PII redaction -> sentiment -> persist ->
-route (human queue, outage fallback, or FAQ agent) -> persist the reply.
+One customer turn: ownership check -> Model Armor screening + PII redaction -> sentiment ->
+persist -> route (human queue, outage fallback, or FAQ agent) -> persist the reply.
 
 Agent calls and the circuit breaker are always reached as `agent_runtime.<name>`
 so test patches on backend.clients.agent_runtime apply here.
@@ -18,7 +18,7 @@ from backend.clients import agent_runtime, stream_parsing
 from backend.core.circuit_breaker import CircuitState
 from backend.core.telemetry import tracer
 from backend.db.models import Message, Ticket
-from backend.security.model_armor import model_armor
+from backend.security.model_armor import ScreeningResult, model_armor
 from backend.services.tickets import (
     TICKET_RESOLVED_DETAIL,
     TICKET_RESOLVED_DURING_REQUEST_DETAIL,
@@ -128,15 +128,21 @@ def _outage_fallback(db: Session, ticket_id: str, caller: str, sentiment: str, e
 # ---------------------------------------------------------------------------
 # Pipeline steps
 # ---------------------------------------------------------------------------
-def _redact(message: str) -> str:
-    """Model Armor / Sensitive Data Protection: strips card numbers, SSNs and emails before any LLM call."""
+def _screen(message: str) -> ScreeningResult:
+    """Model Armor: redacts PII and screens for prompt injection / harmful content before any
+    LLM call. Only filter names and states go into the span, never the text."""
     with tracer.start_as_current_span("model_armor_redact") as span:
-        redacted_message = model_armor.redact(message)
-        redacted = (redacted_message != message)
+        result = model_armor.screen(message)
+        redacted = (result.text != message)
         span.set_attribute("model_armor.redacted", redacted)
+        span.set_attribute("model_armor.path", result.path)
+        span.set_attribute("model_armor.threat_screened", result.threat_screened)
+        span.set_attribute("model_armor.blocked", result.blocked)
+        span.set_attribute("model_armor.urgent", result.urgent)
+        span.set_attribute("model_armor.findings", ",".join(result.findings))
         if redacted:
             logger.info("Model Armor successfully redacted sensitive customer PII before LLM dispatch.")
-    return redacted_message
+    return result
 
 
 async def _classify_sentiment(message: str) -> tuple[str, dict, bool]:
@@ -318,8 +324,10 @@ async def handle_support_query(db: Session, caller: str, message: str,
     else:
         ticket_id = new_ticket_id()
 
-    # Step 0: redact PII before anything is sent to Gemini agents or stored.
-    message = _redact(message)
+    # Step 0: Model Armor screening. PII is redacted before anything is sent to Gemini
+    # agents or stored.
+    screening = _screen(message)
+    message = screening.text
 
     # Escalated tickets belong to the human queue (scoping doc): no sentiment or FAQ call.
     # This is also what keeps the FAQ agent's memory consistent with the transcript: every
@@ -328,7 +336,18 @@ async def handle_support_query(db: Session, caller: str, message: str,
         return append_to_escalated_ticket(db, ticket_id, caller, message)
 
     # Step 1: sentiment. A failed classification is treated as urgent (fail closed).
-    sentiment, entities, sentiment_failed = await _classify_sentiment(message)
+    if screening.blocked:
+        # Prompt injection / jailbreak / malicious URI: no LLM sees the message. A human
+        # reviews it. The reply is the same as when sentiment is unavailable, so the sender
+        # can't tell that screening flagged it.
+        logger.warning("Model Armor blocked a customer message (%s); routing ticket %s to the "
+                       "human queue without agent calls.", ",".join(screening.findings), ticket_id)
+        sentiment, entities, sentiment_failed = SENTIMENT_UNAVAILABLE, {}, True
+    elif screening.urgent:
+        # Responsible AI filter match (abusive / harmful content): a human handles it.
+        sentiment, entities, sentiment_failed = agent_runtime.SENTIMENT_URGENT, {}, False
+    else:
+        sentiment, entities, sentiment_failed = await _classify_sentiment(message)
     is_urgent = sentiment_failed or sentiment == agent_runtime.SENTIMENT_URGENT
     calming_ack = _urgent_ack(entities, sentiment_failed) if is_urgent else None
 

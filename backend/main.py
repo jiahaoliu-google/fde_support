@@ -14,6 +14,7 @@ from backend.api import chat, health, tickets
 from backend.core.config import settings
 from backend.core.telemetry import instrument_app
 from backend.db.session import init_db
+from backend.security.model_armor import model_armor
 
 os.environ.setdefault("SSL_CERT_FILE", certifi.where())
 os.environ.setdefault("REQUESTS_CA_BUNDLE", certifi.where())
@@ -43,6 +44,12 @@ app = FastAPI(
 
 # OpenTelemetry Cloud Trace Instrumentation
 instrument_app(app)
+
+# Model Armor screening + PII redaction: create the Model Armor and Cloud DLP clients now
+# (background, no API call) instead of on the first customer message. Logged at WARNING so
+# it shows in production logs.
+logger.warning(f"PII redaction / prompt screening: {model_armor.status()}")
+model_armor.warm_up()
 
 app.include_router(health.router)
 app.include_router(chat.router)

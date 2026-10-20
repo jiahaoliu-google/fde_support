@@ -7,6 +7,7 @@
 #       roles/aiplatform.user                   Gemini calls (agents + LLM judges, eval service)
 #       roles/discoveryengine.viewer            search_support_records (servingConfigs.search)
 #       roles/serviceusage.serviceUsageConsumer bill API quota to the project
+#       roles/dlp.user                          Model Armor PII redaction via Cloud DLP
 #   * a workload identity pool + GitHub OIDC provider that ONLY accepts tokens from
 #     ${GITHUB_REPO} (attribute condition), and lets that repo impersonate the SA.
 #
@@ -31,7 +32,7 @@ echo "Repo:    $GITHUB_REPO"
 echo
 
 echo "== APIs"
-gcloud services enable iam.googleapis.com iamcredentials.googleapis.com sts.googleapis.com \
+gcloud services enable iam.googleapis.com iamcredentials.googleapis.com sts.googleapis.com dlp.googleapis.com \
   --project "$PROJECT_ID"
 
 echo "== Service account $SA_EMAIL"
@@ -40,7 +41,7 @@ if ! gcloud iam service-accounts describe "$SA_EMAIL" --project "$PROJECT_ID" >/
     --display-name "FDE Support CI eval (GitHub Actions)" \
     --description "Used only by .github/workflows/eval-pr.yml via Workload Identity Federation"
 fi
-for role in roles/aiplatform.user roles/discoveryengine.viewer roles/serviceusage.serviceUsageConsumer; do
+for role in roles/aiplatform.user roles/discoveryengine.viewer roles/serviceusage.serviceUsageConsumer roles/dlp.user; do
   gcloud projects add-iam-policy-binding "$PROJECT_ID" \
     --member "serviceAccount:${SA_EMAIL}" --role "$role" --condition None --quiet >/dev/null
   echo "  granted $role"

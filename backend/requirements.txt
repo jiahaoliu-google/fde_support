@@ -6,6 +6,13 @@ pydantic-settings>=2.2.0
 httpx>=0.27.0
 psycopg2-binary>=2.9.9
 google-cloud-secret-manager>=2.18.0
+# Model Armor sanitizeUserPrompt: PII de-identification + prompt-injection / jailbreak screening
+# (backend/security/model_armor.py). Without it screening is off and PII redaction falls back
+# to Cloud DLP, then regex.
+google-cloud-modelarmor>=0.7.2,<1.0.0
+# PII redaction fallback via Cloud DLP (backend/security/model_armor.py). Without it (and
+# without Model Armor) the backend falls back to regex-only redaction.
+google-cloud-dlp>=3.18.0
 google-auth[cryptography]>=2.28.0
 opentelemetry-api>=1.24.0
 opentelemetry-sdk>=1.24.0

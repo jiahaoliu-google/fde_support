@@ -410,7 +410,8 @@ class TestBackendProbe(unittest.TestCase):
         self.assertEqual((s["errors"]["db_writes"], s["errors"]["db_write_errors"]), (12, 0))
         self.assertEqual(s["latency"]["db_write_ms"]["n"], 12)
         self.assertEqual(s["latency"]["model_armor_redaction_ms"]["n"], 6)
-        self.assertEqual(s["model_armor"]["path"], self.probe.model_armor_path)
+        self.assertEqual(s["model_armor"]["path"], "regex")          # DLP disabled in tests
+        self.assertEqual(s["model_armor"]["by_path"], {"regex": 6})
         self.assertFalse(s["db"]["t3_gated"])                         # SQLite: measured, not judged
         self.assertIsNone(s["gates"]["db_write_p95_ms"])
 
