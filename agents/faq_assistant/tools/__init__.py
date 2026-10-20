@@ -15,6 +15,7 @@ try:
     from ..tools_impl import (  # noqa: F401
         search_support_records,
         get_order_status,
+        order_id_guard,
         _get_search_client,
     )
 
@@ -24,6 +25,7 @@ except ImportError:  # Loaded as a top-level package (deployed agent directory).
     from tools_impl import (  # noqa: F401
         search_support_records,
         get_order_status,
+        order_id_guard,
         _get_search_client,
     )
 

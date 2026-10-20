@@ -21,6 +21,7 @@ import itertools
 import json
 import logging
 import os
+import re
 import sys
 from importlib import metadata as importlib_metadata
 
@@ -269,8 +270,8 @@ def get_order_status(order_id: str) -> dict:
     cannot cancel, modify, or refund orders.
 
     Args:
-        order_id: The order ID provided by the user, e.g. "#10234" or "10234".
-            Variants like "ORD-10234" or "#10234" are accepted.
+        order_id: The order ID exactly as the user typed it in this conversation
+            ("#" followed by digits; "ORD-" prefixes or a missing "#" are accepted).
 
     Returns:
         A dict with:
@@ -283,7 +284,7 @@ def get_order_status(order_id: str) -> dict:
     if normalized is None:
         return {
             "status": "invalid_order_id",
-            "message": "Order IDs look like #12345. Ask the user to confirm their order ID.",
+            "message": "Order IDs start with # followed by digits. Ask the user to confirm their order ID.",
         }
 
     lookup_fn = getattr(sys.modules.get("agents.faq_assistant.tools"), "lookup_order", lookup_order)
@@ -298,3 +299,47 @@ def get_order_status(order_id: str) -> dict:
     # Rename to avoid confusion with the tool-level "status" key.
     record["order_status"] = record.pop("status")
     return {"status": "found", "order": record}
+
+
+_DIGIT_RUN_RE = re.compile(r"\d+")
+
+
+def _user_typed_texts(tool_context: Any) -> list[str]:
+    """Text of every user-authored message in the session, including the current one."""
+    texts: list[str] = []
+    session = getattr(tool_context, "session", None)
+    for event in getattr(session, "events", None) or []:
+        if getattr(event, "author", None) != "user":
+            continue
+        for part in getattr(getattr(event, "content", None), "parts", None) or []:
+            if getattr(part, "text", None):
+                texts.append(part.text)
+    for part in getattr(getattr(tool_context, "user_content", None), "parts", None) or []:
+        if getattr(part, "text", None):
+            texts.append(part.text)
+    return texts
+
+
+def order_id_guard(tool: Any, args: dict, tool_context: Any) -> dict | None:
+    """before_tool_callback: runs get_order_status only for an order ID the user typed.
+
+    Asked "Where is my package?" with no ID, the model called get_order_status with a
+    made-up "#12345" or with "" (sometimes repeatedly), even after the example ID was
+    removed from the prompt. Returning a dict skips the tool and hands this result to the
+    model instead, so an invented ID can never reach the order backend.
+    """
+    if getattr(tool, "name", None) != "get_order_status":
+        return None
+    normalized = normalize_order_id((args or {}).get("order_id"))
+    if normalized:
+        digits = normalized.lstrip("#")
+        if any(digits in _DIGIT_RUN_RE.findall(text) for text in _user_typed_texts(tool_context)):
+            return None
+    logger.info("Blocked get_order_status: order ID not provided by the user.")
+    return {
+        "status": "order_id_not_provided",
+        "message": (
+            "The user has not given an order ID in this conversation. Do not call "
+            "get_order_status again. Ask the user for their order ID and wait for their reply."
+        ),
+    }
