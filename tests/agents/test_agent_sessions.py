@@ -151,6 +151,111 @@ class TestFaqSessionStore(_CleanEnv):
         self.assertEqual(parent.call_args_list[0].kwargs["ttl"], "60s")
         self.assertNotIn("ttl", parent.call_args_list[1].kwargs)
 
+    # --- Agent Identity: certificate-bound tokens need mTLS (prod 401 regression) ---
+    def _write_workload_cert(self, tmp: str) -> str:
+        import datetime
+        from cryptography import x509
+        from cryptography.hazmat.primitives import hashes, serialization
+        from cryptography.hazmat.primitives.asymmetric import ec
+        from cryptography.x509.oid import NameOID
+
+        key = ec.generate_private_key(ec.SECP256R1())
+        name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "agent")])
+        now = datetime.datetime.now(datetime.timezone.utc)
+        cert = (x509.CertificateBuilder().subject_name(name).issuer_name(name)
+                .public_key(key.public_key()).serial_number(1)
+                .not_valid_before(now).not_valid_after(now + datetime.timedelta(days=1))
+                .sign(key, hashes.SHA256()))
+        cert_path, key_path = os.path.join(tmp, "cert.pem"), os.path.join(tmp, "key.pem")
+        with open(cert_path, "wb") as f:
+            f.write(cert.public_bytes(serialization.Encoding.PEM))
+        with open(key_path, "wb") as f:
+            f.write(key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8,
+                                      serialization.NoEncryption()))
+        config_path = os.path.join(tmp, "cert_config.json")
+        with open(config_path, "w", encoding="utf-8") as f:
+            json.dump({"cert_configs": {"workload": {"cert_path": cert_path, "key_path": key_path}}}, f)
+        return config_path
+
+    def test_no_mtls_override_off_agent_identity(self):
+        service = self._vertex_service()
+        self.assertIsNone(service._api_client_http_options_override())
+
+    def _api_client(self, opts):
+        # The genai API client that vertexai.Client wraps; ADK builds one per Sessions call.
+        from google.genai._api_client import BaseApiClient
+        return BaseApiClient(vertexai=True, project="p", location="us-central1", http_options=opts)
+
+    def test_agent_identity_routes_sessions_over_mtls(self):
+        import ssl
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            os.environ["GOOGLE_API_CERTIFICATE_CONFIG"] = self._write_workload_cert(tmp)
+            service = self._vertex_service()
+            opts = service._api_client_http_options_override()
+            self.assertEqual(opts.base_url, "https://us-central1-aiplatform.mtls.googleapis.com/")
+            ctx = opts.async_client_args["verify"]
+            self.assertIsInstance(ctx, ssl.SSLContext)
+            self.assertIs(opts.async_client_args["ssl"], ctx)
+            # Same context while the certificate is unchanged.
+            self.assertIs(service._api_client_http_options_override().async_client_args["verify"], ctx)
+
+            # Both genai transports present the workload cert to the mTLS endpoint,
+            # and project/location are kept for auth.
+            api_client = self._api_client(opts)
+            self.assertEqual(api_client._http_options.base_url,
+                             "https://us-central1-aiplatform.mtls.googleapis.com/")
+            self.assertEqual((api_client.project, api_client.location), ("p", "us-central1"))
+            self.assertIs(api_client._async_httpx_client_args["verify"], ctx)
+            if api_client._use_aiohttp():
+                self.assertIs(api_client._async_client_session_request_args["ssl"], ctx)
+
+    def test_mtls_never_shares_a_transport_across_api_clients(self):
+        """Prod regression: AdkApp runs each turn in its own asyncio.run() loop.
+
+        A module-level httpx.AsyncClient reused by the next turn failed with
+        "RuntimeError: <asyncio.locks.Event ...> is bound to a different event loop".
+        Only the (loop-agnostic) SSL context may be shared; each API client owns its transport.
+        """
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            os.environ["GOOGLE_API_CERTIFICATE_CONFIG"] = self._write_workload_cert(tmp)
+            service = self._vertex_service()
+
+            async def one_turn():
+                opts = service._api_client_http_options_override()
+                self.assertIsNone(opts.httpx_async_client)
+                self.assertIsNone(opts.aiohttp_client)
+                return self._api_client(opts)
+
+            first, second = run(one_turn()), run(one_turn())  # two event loops, like two turns
+            self.assertIsNot(first._async_httpx_client, second._async_httpx_client)
+            self.assertIs(first._async_httpx_client_args["verify"],
+                          second._async_httpx_client_args["verify"])
+
+    def test_mtls_context_rebuilt_on_cert_rotation(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            os.environ["GOOGLE_API_CERTIFICATE_CONFIG"] = self._write_workload_cert(tmp)
+            first = self.svc._mtls_http_options("us-central1").async_client_args["verify"]
+            cert_path = os.path.join(tmp, "cert.pem")
+            st = os.stat(cert_path)
+            os.utime(cert_path, (st.st_atime, st.st_mtime + 3600))
+            second = self.svc._mtls_http_options("us-central1").async_client_args["verify"]
+            self.assertIsNot(first, second)
+
+    def test_unusable_cert_config_falls_back_to_default_transport(self):
+        os.environ["GOOGLE_API_CERTIFICATE_CONFIG"] = "/nonexistent/cert_config.json"
+        self.assertIsNone(self.svc._mtls_http_options("us-central1"))
+
+    def test_corrupt_cert_falls_back_to_default_transport(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            os.environ["GOOGLE_API_CERTIFICATE_CONFIG"] = self._write_workload_cert(tmp)
+            with open(os.path.join(tmp, "cert.pem"), "w", encoding="utf-8") as f:
+                f.write("not a certificate")
+            self.assertIsNone(self.svc._mtls_http_options("us-central1"))
+
     def test_memory_survives_process_restart(self):
         """Two independent service instances (= two processes) see the same conversation."""
         from google.adk.events import Event
