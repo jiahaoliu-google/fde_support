@@ -1,8 +1,14 @@
+# _TAG: immutable per-build tag (git SHA) so deploy.sh resolves the exact digest it built.
+substitutions:
+  _TAG: manual
+
 steps:
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', 'us-central1-docker.pkg.dev/$PROJECT_ID/fde-support-repo/backend:latest', '-f', 'backend/Dockerfile', '.']
-  - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'us-central1-docker.pkg.dev/$PROJECT_ID/fde-support-repo/backend:latest']
+    args: ['build',
+           '-t', 'us-central1-docker.pkg.dev/$PROJECT_ID/fde-support-repo/backend:latest',
+           '-t', 'us-central1-docker.pkg.dev/$PROJECT_ID/fde-support-repo/backend:${_TAG}',
+           '-f', 'backend/Dockerfile', '.']
 
 images:
   - 'us-central1-docker.pkg.dev/$PROJECT_ID/fde-support-repo/backend:latest'
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/fde-support-repo/backend:${_TAG}'

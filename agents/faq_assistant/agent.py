@@ -11,10 +11,10 @@ from pydantic import BaseModel, Field
 
 try:
     from .answer_sanitizer import sanitize_answer, sanitize_response_json_text
-    from .tools import get_order_status, search_support_records
+    from .tools import get_order_status, order_id_guard, search_support_records
 except ImportError:  # Loaded as a top-level module (deployed agent directory).
     from answer_sanitizer import sanitize_answer, sanitize_response_json_text
-    from tools import get_order_status, search_support_records
+    from tools import get_order_status, order_id_guard, search_support_records
 
 logger = logging.getLogger(__name__)
 
@@ -101,7 +101,7 @@ C. ACTION REQUEST (cancel, modify, refund, change address, reorder).
 D. BOTH A and B (e.g. "my order arrived damaged, how do I return it?").
 
 STEP 2 - GATHER CONTEXT BEFORE USING ANY TOOL:
-- A without an order ID: do NOT call any tool. Ask the user for their order ID (format like #12345).
+- A without an order ID: do NOT call any tool. Ask the user for their order ID (it starts with #, followed by digits). Only an order ID typed by the user in this conversation counts.
 - B that is NOT search-ready (broad, generic, or missing subject context, e.g. "how do I return?", "what is shipping cost?", "warranty info", "help"): do NOT call any tool. Ask 1 brief, targeted clarifying question to collect the missing context (e.g. brand, product, service, or location).
 - Never invent, guess, or reuse an example order ID.
 
@@ -115,6 +115,7 @@ STEP 4 - ANSWER ONLY FROM TOOL RESULTS (GROUNDING RULES):
 - Every factual statement must come from tool results in this conversation. Do not add facts from general knowledge.
 - Order answers must report status, dates, carrier, and tracking exactly as returned. Do not round or reinterpret dates.
 - get_order_status returns "not_found" or "invalid_order_id": say you could not find that order, ask the user to double-check the ID, and do not guess any status.
+- get_order_status returns "order_id_not_provided": do not call it again. Ask the user for their order ID; set "grounded": false and "escalate": false.
 - search_support_records returns "no_results" or nothing relevant: say you could not find a documented answer, offer to connect the user with a human agent, set "grounded": false and "escalate": true.
 - A tool returns "error": apologize, say the system is temporarily unavailable, set "escalate": true.
 - Do NOT refuse to share details just because records come from historical support conversations. Extract and present all actionable details (RMA steps, return windows, fees, troubleshooting steps, seller vs manufacturer policies) present in the results.
@@ -131,7 +132,7 @@ STEP 5 - CUSTOMER-FACING LANGUAGE (the customer must never learn how answers are
 - NEVER mention or hint at: a datastore, knowledge base, database, search, search results, support records, documents, historical/past conversations or tickets, other users' or customers' reports, tools, or function names.
 - Do NOT write attribution phrases like "Based on our records", "According to the knowledge base", "I found in our support history", or "Other users reported".
 - When nothing relevant is found, say "I don't have specific information on that" and offer a human agent; do not explain why.
-- Order details may be stated plainly (e.g. "Your order #10201 is in transit...").
+- Order details may be stated plainly (e.g. "Your order <order_id> is in transit...").
 
 STRICT JSON OUTPUT FORMAT (applies to EVERY final response, including after tool calls):
 Your final response must be ONLY one raw JSON object: no prose before or after it, no markdown code fences.
@@ -143,6 +144,7 @@ Keys:
 - escalate: boolean (true ONLY in the cases listed under ESCALATION POLICY; otherwise false)
 """,
     tools=[search_support_records, get_order_status],
+    before_tool_callback=order_id_guard,
     output_schema=FaqResponse,
     after_model_callback=sanitize_model_response,
 )

@@ -1,0 +1,10 @@
+# Excluded from the Agent Runtime source package (agents-cli deploy).
+# Local build/dev artifacts only; the image installs deps from requirements.txt.
+.git
+.gitignore
+.gcloudignore
+.venv/
+.adk/
+__pycache__/
+*.pyc
+*.egg-info/

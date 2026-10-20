@@ -13,6 +13,19 @@ Engine ID resolution order (first hit wins):
 If none is found the service falls back to in-memory storage for local
 development, unless ``REQUIRE_DURABLE_SESSIONS=true`` (the default on Agent
 Runtime), in which case start-up fails rather than silently losing memory.
+
+Authentication note (Agent Identity):
+    With ``--agent-identity`` google-auth issues access tokens *bound* to the
+    X.509 workload certificate advertised via ``GOOGLE_API_CERTIFICATE_CONFIG``.
+    Google only accepts a bound token over mTLS with that same certificate, so the
+    Sessions API client is pointed at the regional mTLS endpoint with an SSL context
+    that presents the workload cert. Without this, every session call fails
+    with ``401 UNAUTHENTICATED`` (the Discovery Engine client in ``tools_impl.py``
+    applies the same fix). See ``_mtls_http_options``.
+
+    Only the SSL context is shared, never an HTTP client: ``AdkApp`` runs each turn
+    in its own ``asyncio.run`` loop, and a pooled async client reused across loops
+    fails with ``... is bound to a different event loop``.
 """
 
 from __future__ import annotations
@@ -21,6 +34,8 @@ import json
 import logging
 import os
 import re
+import ssl
+import threading
 from typing import Any, Optional
 
 from google.adk.artifacts import BaseArtifactService, InMemoryArtifactService
@@ -44,6 +59,13 @@ _METADATA_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__
 
 _artifact_service = InMemoryArtifactService()
 _session_service: Optional[BaseSessionService] = None
+
+_CERT_CONFIG_ENV = "GOOGLE_API_CERTIFICATE_CONFIG"
+# One SSL context per certificate generation (keyed on cert/key mtime) so the ~24h
+# workload-cert rotation is picked up. SSL contexts are not bound to an event loop.
+_mtls_lock = threading.Lock()
+_mtls_ctx_key: Optional[tuple] = None
+_mtls_ctx: Optional[ssl.SSLContext] = None
 
 
 def _truthy(value: Optional[str]) -> bool:
@@ -105,11 +127,70 @@ def _running_on_agent_runtime() -> bool:
     return bool(os.getenv("GOOGLE_CLOUD_AGENT_ENGINE_ID") or os.getenv("GOOGLE_API_CERTIFICATE_CONFIG"))
 
 
+def _workload_cert_paths() -> Optional[tuple[str, str]]:
+    """Returns (cert_path, key_path) of the Agent Identity workload cert, if provisioned."""
+    config_path = os.getenv(_CERT_CONFIG_ENV)
+    if not config_path:
+        return None
+    try:
+        with open(config_path, encoding="utf-8") as f:
+            workload = json.load(f)["cert_configs"]["workload"]
+        cert_path, key_path = workload["cert_path"], workload["key_path"]
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        logger.warning("Ignoring unusable certificate config %s (%s).", config_path, type(exc).__name__)
+        return None
+    if not all(isinstance(p, str) and os.path.isfile(p) for p in (cert_path, key_path)):
+        logger.warning("Workload certificate or key referenced by %s is missing.", config_path)
+        return None
+    return cert_path, key_path
+
+
+def _mtls_ssl_context(cert_path: str, key_path: str) -> Optional[ssl.SSLContext]:
+    """SSL context presenting the workload cert; rebuilt when the cert rotates."""
+    global _mtls_ctx_key, _mtls_ctx
+    import certifi
+
+    try:
+        key = (cert_path, key_path, os.path.getmtime(cert_path), os.path.getmtime(key_path))
+        with _mtls_lock:
+            if _mtls_ctx is None or key != _mtls_ctx_key:
+                ctx = ssl.create_default_context(
+                    cafile=os.environ.get("SSL_CERT_FILE", certifi.where()),
+                    capath=os.environ.get("SSL_CERT_DIR"),
+                )
+                ctx.load_cert_chain(certfile=cert_path, keyfile=key_path)
+                _mtls_ctx, _mtls_ctx_key = ctx, key
+            return _mtls_ctx
+    except (OSError, ssl.SSLError) as exc:
+        logger.warning("Cannot load workload certificate for mTLS (%s).", type(exc).__name__)
+        return None
+
+
+def _mtls_http_options(location: str) -> Any:
+    """HttpOptions routing Sessions API calls over mTLS with the workload cert, or None.
+
+    Returns None off Agent Identity (local ADC / service account), keeping default behaviour.
+    The context is passed as client *arguments* so genai builds (and closes) a fresh
+    transport per API client: ``verify`` for httpx, ``ssl`` for aiohttp (each transport
+    drops the key it does not understand).
+    """
+    paths = _workload_cert_paths()
+    ctx = _mtls_ssl_context(*paths) if paths else None
+    if ctx is None:
+        return None
+    from google.genai import types
+
+    return types.HttpOptions(
+        base_url=f"https://{location}-aiplatform.mtls.googleapis.com/",
+        async_client_args={"verify": ctx, "ssl": ctx},
+    )
+
+
 def _build_vertex_service(engine_id: str, location_hint: Optional[str]) -> BaseSessionService:
     from google.adk.sessions import VertexAiSessionService
 
     class TtlVertexAiSessionService(VertexAiSessionService):
-        """VertexAiSessionService that always applies a TTL, whoever creates the session."""
+        """VertexAiSessionService that always applies a TTL and uses mTLS under Agent Identity."""
 
         def __init__(self, *args: Any, ttl_seconds: int, **kwargs: Any):
             super().__init__(*args, **kwargs)
@@ -120,10 +201,19 @@ def _build_vertex_service(engine_id: str, location_hint: Optional[str]) -> BaseS
                 kwargs["ttl"] = f"{self.ttl_seconds}s"
             return await super().create_session(**kwargs)
 
+        def _api_client_http_options_override(self) -> Any:
+            # Called by ADK every time it builds a Sessions API client.
+            return _mtls_http_options(self._location)
+
     project = os.getenv("GOOGLE_CLOUD_PROJECT") or os.getenv("GCP_PROJECT_ID")
+    location = resolve_engine_location(location_hint)
+    logger.info(
+        "FAQ session store transport: mtls=%s location=%s",
+        "on" if _workload_cert_paths() else "off", location,
+    )
     return TtlVertexAiSessionService(
         project=project,
-        location=resolve_engine_location(location_hint),
+        location=location,
         agent_engine_id=engine_id,
         ttl_seconds=session_ttl_seconds(),
     )
