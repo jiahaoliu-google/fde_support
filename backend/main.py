@@ -5,6 +5,8 @@ import uuid
 import hashlib
 import logging
 import asyncio
+import random
+import threading
 import certifi
 import httpx
 from fastapi import FastAPI, HTTPException, Depends, Request
@@ -26,10 +28,15 @@ os.environ.setdefault("REQUESTS_CA_BUNDLE", certifi.where())
 logger = logging.getLogger("backend")
 logging.basicConfig(level=logging.INFO if settings.DEBUG else logging.WARNING)
 
-# Ensure database tables exist on module import / startup
+# Ensure database tables exist on module import / startup.
+# Production fails fast: if the DB is unreachable the container exits, so Cloud Run never
+# routes traffic to the revision (the previous healthy revision keeps serving).
 try:
     init_db()
 except Exception as e:
+    if settings.is_production:
+        logger.critical(f"Database initialization failed in production; refusing to start: {type(e).__name__}: {e}")
+        raise
     logger.warning(f"Initial DB check warning: {e}")
 
 # Configurable Agent Runtime Microservice Endpoints on Vertex AI
@@ -42,17 +49,30 @@ rag_circuit_breaker = CircuitBreaker(
     recovery_timeout_seconds=settings.CIRCUIT_RECOVERY_TIMEOUT
 )
 
+_gcp_credentials = None
+_gcp_credentials_lock = threading.Lock()
+
 def get_gcp_auth_headers() -> dict:
-    """Retrieves GCP OAuth access token for calling Reasoning Engine endpoints."""
+    """Returns an OAuth access-token header for calling Reasoning Engine endpoints.
+
+    Credentials are loaded once and refreshed only when expired or about to expire
+    (google-auth's ``valid`` includes a refresh margin), so a normal request does no
+    blocking network I/O here.
+    """
+    global _gcp_credentials
     try:
         import google.auth
         import google.auth.transport.requests
-        credentials, _ = google.auth.default()
-        auth_req = google.auth.transport.requests.Request()
-        credentials.refresh(auth_req)
-        return {"Authorization": f"Bearer {credentials.token}"}
+        with _gcp_credentials_lock:
+            if _gcp_credentials is None:
+                _gcp_credentials, _ = google.auth.default(
+                    scopes=["https://www.googleapis.com/auth/cloud-platform"]
+                )
+            if not _gcp_credentials.valid:
+                _gcp_credentials.refresh(google.auth.transport.requests.Request())
+            return {"Authorization": f"Bearer {_gcp_credentials.token}"}
     except Exception as e:
-        logger.warning(f"GCP Auth token acquisition failed: {e}")
+        logger.warning(f"GCP Auth token acquisition failed: {type(e).__name__}: {e}")
         return {}
 
 def parse_ndjson_stream(raw_text: str) -> tuple[str, list[str]]:
@@ -176,6 +196,115 @@ def format_citations(raw_citations: list[str]) -> list[str]:
             formatted.append(entry)
     return formatted
 
+# Must match SentimentResult.sentiment in agents/sentiment_router/agent.py.
+SENTIMENT_URGENT = "URGENT_FRUSTRATED"
+SENTIMENT_NEUTRAL = "NEUTRAL_FACTUAL"
+SENTIMENT_LABELS = frozenset({SENTIMENT_URGENT, SENTIMENT_NEUTRAL})
+
+class SentimentClassificationError(Exception):
+    """The agent answered, but not with a usable label. Fails closed (escalate), and is
+    not counted as an availability failure by the circuit breaker."""
+
+# search_support_records error types (agents/faq_assistant/tools.py) that mean Agent Search
+# itself is unhealthy, mapped to the HTTP status the circuit breaker should record.
+# auth_error / permission_denied are configuration faults that won't recover on their own,
+# so they are left to the agent's normal escalate=true answer and don't trip the breaker.
+SEARCH_TOOL_ERROR_STATUS = {"rate_limited": 429, "search_unavailable": 503}
+
+class UpstreamDependencyError(Exception):
+    """The FAQ agent replied, but Agent Search failed during the turn.
+
+    The search tool catches Discovery Engine errors and hands them to the model, so the
+    agent endpoint still returns HTTP 200. Raising this makes the backend treat the turn
+    like an HTTP error from the agent: the circuit breaker counts it, and the customer
+    gets the outage fallback.
+    """
+
+    def __init__(self, status_code: int, reason: str):
+        super().__init__(f"Agent Search {reason} (HTTP {status_code})")
+        self.status_code = status_code
+        self.reason = reason
+
+def detect_search_tool_failure(raw_text: str) -> tuple[int, str] | None:
+    """Returns (status_code, error_type) if Agent Search failed during this agent turn.
+
+    Reads the search_support_records function_response events in the NDJSON stream.
+    Returns None if no search ran, if any search in the turn succeeded (the answer can
+    still be grounded), or if the only errors are non-transient ones. A 429 wins over
+    a 503 when both appear.
+    """
+    failure = None
+    for line in raw_text.strip().split("\n"):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            data = json.loads(line)
+        except ValueError:
+            continue
+        content = data.get("content") if isinstance(data, dict) else None
+        parts = content.get("parts") if isinstance(content, dict) else None
+        for part in parts or []:
+            if not isinstance(part, dict):
+                continue
+            fr = part.get("function_response") or part.get("functionResponse")
+            if not isinstance(fr, dict) or fr.get("name") != "search_support_records":
+                continue
+            resp = fr.get("response")
+            status = resp.get("status") if isinstance(resp, dict) else None
+            if status in ("success", "no_results"):
+                return None
+            if status == "error":
+                error_type = resp.get("error_type")
+                code = SEARCH_TOOL_ERROR_STATUS.get(error_type)
+                if code and (failure is None or code == 429):
+                    failure = (code, error_type)
+    return failure
+
+# FAQ agent retry policy (scope: exponential backoff). Retries happen inside one customer
+# question; the circuit breaker gets a single outcome per question, after all attempts.
+FAQ_MAX_ATTEMPTS = 3
+FAQ_RETRY_BASE_DELAY_SECONDS = 0.5
+FAQ_RETRY_MAX_DELAY_SECONDS = 2.0
+
+def faq_failure_status(exc: Exception) -> int:
+    """HTTP-style status for a failed FAQ agent attempt (timeouts count as 504)."""
+    if isinstance(exc, httpx.TimeoutException):
+        return 504
+    code = getattr(exc, "status_code", None)
+    return code if isinstance(code, int) else 503
+
+def faq_is_retryable(status_code: int) -> bool:
+    """Only transient server errors are retried.
+
+    429: retrying adds load to an exhausted quota. 504: the timeout already used the
+    request's time budget. Other 4xx: the same request fails the same way again.
+    """
+    return status_code >= 500 and status_code != 504
+
+def faq_retry_delay(attempt: int) -> float:
+    """Exponential backoff with full jitter: uniform(0, min(max, base * 2^(attempt-1)))."""
+    cap = min(FAQ_RETRY_MAX_DELAY_SECONDS, FAQ_RETRY_BASE_DELAY_SECONDS * (2 ** (attempt - 1)))
+    return random.uniform(0, cap)
+
+async def query_faq_with_retries(message: str, session_id: str, user_id: str,
+                                 max_attempts: int) -> tuple[dict | None, int | None]:
+    """Calls the FAQ agent for one customer question.
+
+    Returns (faq_data, None) on success, or (None, status_code) of the last failed attempt.
+    """
+    last_status = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            return await call_faq_agent(message, session_id, user_id), None
+        except Exception as e:
+            last_status = faq_failure_status(e)
+            logger.warning(f"FAQ agent attempt {attempt}/{max_attempts} failed (status={last_status}): {e}")
+            if attempt == max_attempts or not faq_is_retryable(last_status):
+                break
+            await asyncio.sleep(faq_retry_delay(attempt))
+    return None, last_status
+
 async def call_sentiment_agent(message: str) -> dict:
     """Sends HTTP REST request over the network to Sentiment Agent on Agent Runtime."""
     if not SENTIMENT_AGENT_URL:
@@ -214,11 +343,17 @@ async def call_sentiment_agent(message: str) -> dict:
                 
                 try:
                     result = json.loads(clean_text)
-                    span.set_attribute("sentiment.classified", result.get("sentiment", "UNKNOWN"))
-                    return result
                 except Exception:
-                    span.set_attribute("sentiment.classified", "NEUTRAL_FACTUAL")
-                    return {"sentiment": "NEUTRAL_FACTUAL"}
+                    span.set_attribute("sentiment.classified", "UNPARSEABLE")
+                    raise SentimentClassificationError("Sentiment agent returned non-JSON output")
+
+                label = result.get("sentiment") if isinstance(result, dict) else None
+                if label not in SENTIMENT_LABELS:
+                    span.set_attribute("sentiment.classified", "INVALID_LABEL")
+                    raise SentimentClassificationError(f"Unknown sentiment label: {str(label)[:40]!r}")
+
+                span.set_attribute("sentiment.classified", label)
+                return result
                     
             logger.error(f"Sentiment Agent HTTP {resp.status_code}: {resp.text}")
             raise HTTPException(status_code=resp.status_code, detail=f"Sentiment Agent Runtime error: {resp.text}")
@@ -252,6 +387,15 @@ async def call_faq_agent(message: str, session_id: str, user_id: str = "backend_
             span.set_attribute("http.status_code", resp.status_code)
 
             if resp.status_code == 200:
+                # Agent Search errors are caught inside the tool, so they arrive as HTTP 200.
+                # Surface them here so the circuit breaker sees them (TDD: open on 429/503).
+                search_failure = detect_search_tool_failure(resp.text)
+                if search_failure:
+                    code, reason = search_failure
+                    span.set_attribute("faq.search_failure", reason)
+                    logger.warning(f"FAQ Agent turn hit an Agent Search failure: {reason} (HTTP {code})")
+                    raise UpstreamDependencyError(code, reason)
+
                 answer_text, citations = parse_ndjson_stream(resp.text)
                 grounded = bool(answer_text and len(answer_text.strip()) > 0)
                 span.set_attribute("faq.grounded", grounded)
@@ -409,12 +553,62 @@ def agent_user_id(caller: str) -> str:
 def new_ticket_id() -> str:
     return str(uuid.uuid4())
 
-def get_owned_ticket(db: Session, ticket_id: str, caller: str) -> Ticket:
-    """Fetches a ticket only if it belongs to the caller. 404 (not 403) avoids revealing existence."""
-    ticket = db.query(Ticket).filter(Ticket.id == ticket_id, Ticket.customer_id == caller).first()
+def get_owned_ticket(db: Session, ticket_id: str, caller: str, *, for_update: bool = False) -> Ticket:
+    """Fetches a ticket only if it belongs to the caller. 404 (not 403) avoids revealing existence.
+
+    for_update=True locks the row until the current transaction ends (SELECT ... FOR UPDATE on
+    Postgres; SQLite has no row locks and ignores it). Use it when the status is about to be
+    read and then written, so concurrent requests on the same ticket are serialized.
+    """
+    query = db.query(Ticket).filter(Ticket.id == ticket_id, Ticket.customer_id == caller)
+    if for_update:
+        query = query.with_for_update()
+    ticket = query.first()
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket not found")
     return ticket
+
+
+# ---------------------------------------------------------------------------
+# Ticket transactions
+#
+# Rules for /api/chat:
+# * Every DB step is one explicit, short `with db.begin():` block, so its writes are atomic.
+# * No transaction or pooled connection is held while waiting on an agent (sentiment or FAQ).
+#   Values needed after a block are copied into locals inside it; touching an ORM object
+#   after its commit would reload it and silently open a new transaction.
+# * Each write re-reads the ticket under a row lock, because the status may have changed
+#   during the agent call (another tab resolved or escalated it).
+# ---------------------------------------------------------------------------
+TICKET_RESOLVED_DETAIL = (
+    "This ticket is marked as RESOLVED. Please click 'Start New Ticket' to submit new inquiries."
+)
+# Must contain "RESOLVED": the UI locks the chat on a 400 whose detail includes it.
+TICKET_RESOLVED_DURING_REQUEST_DETAIL = (
+    "This ticket was marked as RESOLVED while your message was being processed. "
+    "Please click 'Start New Ticket' to submit new inquiries."
+)
+
+def record_turn(db: Session, ticket_id: str, caller: str, sender: str, text: str, *, escalate: bool) -> str:
+    """Appends one message and applies the status change in a single transaction.
+
+    The ticket is re-read under a row lock:
+    * RESOLVED: nothing is written and a 400 is raised (a resolved ticket is never reopened).
+    * ESCALATED: stays ESCALATED (never downgraded).
+    * escalate=True: becomes ESCALATED. NEW becomes IN_PROGRESS otherwise.
+    Returns the resulting status.
+    """
+    with db.begin():
+        ticket = get_owned_ticket(db, ticket_id, caller, for_update=True)
+        if ticket.current_status == "RESOLVED":
+            raise HTTPException(status_code=400, detail=TICKET_RESOLVED_DURING_REQUEST_DETAIL)
+        if escalate:
+            ticket.current_status = "ESCALATED"
+        elif ticket.current_status == "NEW":
+            ticket.current_status = "IN_PROGRESS"
+        db.add(Message(ticket_id=ticket_id, sender=sender, message_text=text))
+        status = ticket.current_status
+    return status
 
 
 class CreateTicketRequest(BaseModel):
@@ -472,26 +666,33 @@ ESCALATED_FOLLOWUP_ACK = (
     "and a specialist will reply here."
 )
 
-def append_to_escalated_ticket(db: Session, ticket: Ticket, message: str) -> "SupportQueryResponse":
-    """Records a customer follow-up for the human handling an ESCALATED ticket. No LLM calls."""
-    with tracer.start_as_current_span("escalated_ticket_followup") as span:
-        span.set_attribute("ticket.id", ticket.id)
-        db.add(Message(ticket_id=ticket.id, sender="CUSTOMER", message_text=message))
-        db.commit()
+def escalated_followup_response(ticket_id: str, sentiment: str | None) -> "SupportQueryResponse":
     # The ack is returned to the UI but not stored, so the human's transcript holds only
     # real customer turns.
     return SupportQueryResponse(
-        ticket_id=ticket.id,
+        ticket_id=ticket_id,
         ticket_status="ESCALATED",
         answer=ESCALATED_FOLLOWUP_ACK,
-        sentiment=ticket.sentiment or "UNAVAILABLE",
+        sentiment=sentiment or "UNAVAILABLE",
         routed_to="Human Escalation Queue",
         extracted_entities={},
         citations=["Assigned to Human Support Specialist Queue"],
         grounded=False,
-        session_id=ticket.id,
+        session_id=ticket_id,
         agent_service_version="v2.5-human-escalation",
     )
+
+def append_to_escalated_ticket(db: Session, ticket_id: str, caller: str, message: str) -> "SupportQueryResponse":
+    """Records a customer follow-up for the human handling an ESCALATED ticket. No LLM calls."""
+    with tracer.start_as_current_span("escalated_ticket_followup") as span:
+        span.set_attribute("ticket.id", ticket_id)
+        with db.begin():
+            ticket = get_owned_ticket(db, ticket_id, caller, for_update=True)
+            if ticket.current_status == "RESOLVED":  # resolved since the ownership check
+                raise HTTPException(status_code=400, detail=TICKET_RESOLVED_DETAIL)
+            db.add(Message(ticket_id=ticket_id, sender="CUSTOMER", message_text=message))
+            sentiment = ticket.sentiment
+    return escalated_followup_response(ticket_id, sentiment)
 
 
 @app.post("/api/chat", response_model=SupportQueryResponse)
@@ -501,17 +702,17 @@ async def process_support_query(request: SupportQueryRequest, db: Session = Depe
 
     # Ownership check BEFORE any LLM call: a foreign/unknown ticket ID is rejected,
     # so callers can never append to (or read agent memory of) another user's ticket.
-    existing_ticket = None
+    # Read-only transaction: it ends here, before any agent call.
+    existing_status = None
     if request.session_id:
-        existing_ticket = get_owned_ticket(db, request.session_id, caller)
-        if existing_ticket.current_status == "RESOLVED":
-            raise HTTPException(
-                status_code=400,
-                detail="This ticket is marked as RESOLVED. Please click 'Start New Ticket' to submit new inquiries."
-            )
+        with db.begin():
+            existing_status = get_owned_ticket(db, request.session_id, caller).current_status
+        if existing_status == "RESOLVED":
+            raise HTTPException(status_code=400, detail=TICKET_RESOLVED_DETAIL)
     else:
         request.session_id = new_ticket_id()
     request.customer_id = caller
+    ticket_id = request.session_id
 
     # Step 0: Model Armor / Sensitive Data Protection Redaction
     # Redacts Credit Card Numbers, SSNs, and Email Addresses before sending to Gemini agents
@@ -526,17 +727,18 @@ async def process_support_query(request: SupportQueryRequest, db: Session = Depe
     # Escalated tickets belong to the human queue (scoping doc): no sentiment or FAQ call.
     # This is also what keeps the FAQ agent's memory consistent with the transcript: every
     # turn it never saw ends with the ticket ESCALATED, and it is never asked again.
-    if existing_ticket is not None and existing_ticket.current_status == "ESCALATED":
-        return append_to_escalated_ticket(db, existing_ticket, request.message)
+    if existing_status == "ESCALATED":
+        return append_to_escalated_ticket(db, ticket_id, caller, request.message)
 
-    # Step 1: Call Sentiment Agent on Agent Runtime over HTTP
-    sentiment = "NEUTRAL_FACTUAL"
+    # Step 1: Call Sentiment Agent on Agent Runtime over HTTP.
+    # Fail closed: if we can't get a valid label, the ticket goes to a human.
+    sentiment = SENTIMENT_NEUTRAL
     entities = {}
     sentiment_failed = False
     
     try:
         s_data = await call_sentiment_agent(request.message)
-        sentiment = s_data.get("sentiment", "NEUTRAL_FACTUAL")
+        sentiment = s_data["sentiment"]  # validated against SENTIMENT_LABELS
         
         extracted = s_data.get("extracted_entities")
         if isinstance(extracted, dict):
@@ -547,56 +749,18 @@ async def process_support_query(request: SupportQueryRequest, db: Session = Depe
                 "product_name": s_data.get("product_name"),
                 "email": s_data.get("email")
             }
+    except SentimentClassificationError as e:
+        # Agent is up but answered badly: escalate, but don't trip the availability breaker.
+        logger.error(f"Sentiment agent returned an unusable classification: {e}")
+        sentiment_failed = True
     except Exception as e:
         logger.error(f"Error executing sentiment agent: {e}")
         rag_circuit_breaker.record_failure(503)
         sentiment_failed = True
+    is_urgent = sentiment_failed or sentiment == SENTIMENT_URGENT
 
-    # Step 2: Look up or create Ticket in Cloud SQL/DB using session_id as ticket.id
-    with tracer.start_as_current_span("cloud_sql_sync_ticket") as span:
-        span.set_attribute("ticket.id", request.session_id)
-        span.set_attribute("customer.id", request.customer_id)
-        span.set_attribute("db.system", "postgresql")
-
-        db_ticket = db.query(Ticket).filter(Ticket.id == request.session_id, Ticket.customer_id == caller).first()
-        
-        if db_ticket:
-            if db_ticket.current_status == "RESOLVED":
-                raise HTTPException(
-                    status_code=400,
-                    detail="This ticket is marked as RESOLVED. Please click 'Start New Ticket' to submit new inquiries."
-                )
-            if sentiment in ["URGENT_FRUSTRATED", "ANGRY"] or sentiment_failed:
-                db_ticket.sentiment = "URGENT_FRUSTRATED" if not sentiment_failed else "UNAVAILABLE"
-                db_ticket.current_status = "ESCALATED"
-            elif db_ticket.current_status == "NEW":
-                db_ticket.sentiment = sentiment
-                db_ticket.current_status = "IN_PROGRESS"
-        else:
-            initial_status = "ESCALATED" if (sentiment in ["URGENT_FRUSTRATED", "ANGRY"] or sentiment_failed) else "IN_PROGRESS"
-            db_ticket = Ticket(
-                id=request.session_id,
-                customer_id=request.customer_id,
-                current_status=initial_status,
-                sentiment=sentiment if not sentiment_failed else "UNAVAILABLE"
-            )
-            db.add(db_ticket)
-
-        db.commit()
-        db.refresh(db_ticket)
-
-        # Record Customer Message
-        cust_msg = Message(
-            ticket_id=db_ticket.id,
-            sender="CUSTOMER",
-            message_text=request.message
-        )
-        db.add(cust_msg)
-        db.commit()
-        span.set_attribute("ticket.status", db_ticket.current_status)
-
-    # Step 3: Urgent / Frustrated Routing or Sentiment Unavailable Fallback
-    if sentiment_failed or sentiment in ["URGENT_FRUSTRATED", "ANGRY"]:
+    calming_ack = None
+    if is_urgent:
         if sentiment_failed:
             calming_ack = (
                 "Your request has been forwarded directly to our human support queue service, and a specialist will reach out shortly."
@@ -609,122 +773,139 @@ async def process_support_query(request: SupportQueryRequest, db: Session = Depe
                 f"Your issue has been prioritized as URGENT and routed directly to our Senior Human Support Queue. "
                 f"A dedicated support specialist will review your ticket state in Cloud SQL and reach out to you immediately."
             )
-        
-        db_ticket.current_status = "ESCALATED"
-        sys_msg = Message(
-            ticket_id=db_ticket.id,
-            sender="SYSTEM",
-            message_text=calming_ack
-        )
-        db.add(sys_msg)
-        db.commit()
 
+    # Step 2: One transaction: create or update the ticket, store the customer message and,
+    # for urgent turns, the SYSTEM ack. All of it is written, or none of it.
+    escalated_meanwhile = False
+    with tracer.start_as_current_span("cloud_sql_sync_ticket") as span:
+        span.set_attribute("ticket.id", ticket_id)
+        span.set_attribute("customer.id", caller)
+        span.set_attribute("db.system", "postgresql")
+
+        with db.begin():
+            db_ticket = (
+                get_owned_ticket(db, ticket_id, caller, for_update=True)
+                if existing_status is not None else None
+            )
+            if db_ticket is not None and db_ticket.current_status == "RESOLVED":
+                # Resolved in another tab while the sentiment agent was running.
+                raise HTTPException(status_code=400, detail=TICKET_RESOLVED_DURING_REQUEST_DETAIL)
+
+            if db_ticket is not None and db_ticket.current_status == "ESCALATED" and not is_urgent:
+                # Escalated by a concurrent request: this turn belongs to the human now.
+                escalated_meanwhile = True
+            elif db_ticket is not None:
+                if is_urgent:
+                    db_ticket.sentiment = SENTIMENT_URGENT if not sentiment_failed else "UNAVAILABLE"
+                    db_ticket.current_status = "ESCALATED"
+                elif db_ticket.current_status == "NEW":
+                    db_ticket.sentiment = sentiment
+                    db_ticket.current_status = "IN_PROGRESS"
+            else:
+                db_ticket = Ticket(
+                    id=ticket_id,
+                    customer_id=caller,
+                    current_status="ESCALATED" if is_urgent else "IN_PROGRESS",
+                    sentiment=sentiment if not sentiment_failed else "UNAVAILABLE"
+                )
+                db.add(db_ticket)
+
+            db.add(Message(ticket_id=ticket_id, sender="CUSTOMER", message_text=request.message))
+            if is_urgent:
+                db.add(Message(ticket_id=ticket_id, sender="SYSTEM", message_text=calming_ack))
+            ticket_status = db_ticket.current_status
+            ticket_sentiment = db_ticket.sentiment
+        span.set_attribute("ticket.status", ticket_status)
+
+    if escalated_meanwhile:
+        return escalated_followup_response(ticket_id, ticket_sentiment)
+
+    # Step 3: Urgent / Frustrated Routing or Sentiment Unavailable Fallback
+    if is_urgent:
         return SupportQueryResponse(
-            ticket_id=db_ticket.id,
-            ticket_status=db_ticket.current_status,
+            ticket_id=ticket_id,
+            ticket_status=ticket_status,
             answer=calming_ack,
             sentiment=sentiment if not sentiment_failed else "UNAVAILABLE",
             routed_to="Human Escalation Queue",
             extracted_entities=entities,
             citations=["Assigned to Human Support Specialist Queue"],
             grounded=False,
-            session_id=request.session_id,
+            session_id=ticket_id,
             agent_service_version="v2.5-human-escalation"
         )
 
     # Step 4: Check Circuit Breaker State for FAQ Agent
-    initial_cb_state = rag_circuit_breaker.state
-    allowed = rag_circuit_breaker.allow_request()
+    # CLOSED: normal call. HALF_OPEN: this request is the single recovery probe.
+    # None: OPEN, or HALF_OPEN with a probe already in flight, so take the fallback.
+    admitted_as = rag_circuit_breaker.try_acquire()
+    allowed = admitted_as is not None
+    is_probe = admitted_as == CircuitState.HALF_OPEN
 
     with tracer.start_as_current_span("circuit_breaker_check") as cb_span:
-        cb_span.set_attribute("circuit_breaker.state", initial_cb_state.value)
+        cb_span.set_attribute("circuit_breaker.state", rag_circuit_breaker.state.value)
         cb_span.set_attribute("circuit_breaker.failure_count", rag_circuit_breaker.failure_count)
         cb_span.set_attribute("circuit_breaker.allowed", allowed)
+        cb_span.set_attribute("circuit_breaker.probe", is_probe)
 
     if not allowed:
         logger.warning("Circuit breaker OPEN. Bypassing Agent Platform / RAG and routing directly to Human Queue Outage Fallback.")
         fallback_ans = "We are currently experiencing high volume or downstream service delays. Your request has been forwarded to our human queue service."
         
         with tracer.start_as_current_span("cloud_sql_record_fallback") as fb_span:
-            fb_span.set_attribute("ticket.id", db_ticket.id)
+            fb_span.set_attribute("ticket.id", ticket_id)
             fb_span.set_attribute("db.system", "postgresql")
-            db_ticket.current_status = "ESCALATED"
-            fallback_msg = Message(
-                ticket_id=db_ticket.id,
-                sender="SYSTEM",
-                message_text=fallback_ans
-            )
-            db.add(fallback_msg)
-            db.commit()
+            ticket_status = record_turn(db, ticket_id, caller, "SYSTEM", fallback_ans, escalate=True)
 
         return SupportQueryResponse(
-            ticket_id=db_ticket.id,
-            ticket_status=db_ticket.current_status,
+            ticket_id=ticket_id,
+            ticket_status=ticket_status,
             answer=fallback_ans,
             sentiment=sentiment,
             routed_to="Mock Human Queue Service (Circuit Breaker OPEN Fallback)",
             extracted_entities=entities,
             citations=["Circuit Breaker OPEN ➔ Outage Fallback"],
             grounded=False,
-            session_id=request.session_id,
+            session_id=ticket_id,
             agent_service_version="v2.5-circuit-breaker-fallback"
         )
 
-    # Step 5: Call FAQ Assistant Agent based on Circuit Breaker state (CLOSED vs HALF_OPEN)
-    faq_data = None
-    
-    if initial_cb_state == CircuitState.HALF_OPEN or rag_circuit_breaker.state == CircuitState.HALF_OPEN:
-        # HALF_OPEN state: Single probe test query (1 attempt only)
+    # Step 5: Call FAQ Assistant Agent. The breaker records ONE outcome per customer
+    # question (TDD: 3 consecutive failed questions open it), however many attempts it took.
+    if is_probe:
         logger.info("Circuit breaker in HALF_OPEN state: executing single probe test query...")
-        try:
-            faq_data = await call_faq_agent(request.message, request.session_id, agent_user_id(caller))
+    try:
+        faq_data, failure_status = await query_faq_with_retries(
+            request.message, request.session_id, agent_user_id(caller),
+            max_attempts=1 if is_probe else FAQ_MAX_ATTEMPTS,
+        )
+        if faq_data:
             rag_circuit_breaker.record_success()
-        except Exception as e:
-            logger.warning(f"FAQ agent probe in HALF_OPEN state failed: {e}")
-            status_code = getattr(e, "status_code", 503)
-            if status_code not in (400, 422):
-                rag_circuit_breaker.record_failure(status_code)
-    else:
-        # CLOSED state: Real user query, try up to 3 times with 5s delay between attempts
-        max_attempts = 3
-        for attempt in range(1, max_attempts + 1):
-            try:
-                faq_data = await call_faq_agent(request.message, request.session_id, agent_user_id(caller))
-                rag_circuit_breaker.record_success()
-                break
-            except Exception as e:
-                logger.warning(f"FAQ agent attempt {attempt}/{max_attempts} failed: {e}")
-                status_code = getattr(e, "status_code", 503)
-                if status_code not in (400, 422):
-                    rag_circuit_breaker.record_failure(status_code)
-                if attempt < max_attempts:
-                    await asyncio.sleep(5)
+        else:
+            rag_circuit_breaker.record_failure(failure_status or 503)
+    finally:
+        if is_probe:
+            # No-op if record_* already settled the probe; frees the slot after a 4xx.
+            rag_circuit_breaker.release_probe()
 
     # If FAQ Agent failed (all attempts failed or probe failed)
     if not faq_data:
         fallback_ans = "We are currently experiencing high volume or downstream service delays. Your request has been forwarded to our human queue service."
         with tracer.start_as_current_span("cloud_sql_record_fallback") as fb_span:
-            fb_span.set_attribute("ticket.id", db_ticket.id)
+            fb_span.set_attribute("ticket.id", ticket_id)
             fb_span.set_attribute("db.system", "postgresql")
-            db_ticket.current_status = "ESCALATED"
-            fallback_msg = Message(
-                ticket_id=db_ticket.id,
-                sender="SYSTEM",
-                message_text=fallback_ans
-            )
-            db.add(fallback_msg)
-            db.commit()
+            ticket_status = record_turn(db, ticket_id, caller, "SYSTEM", fallback_ans, escalate=True)
 
         return SupportQueryResponse(
-            ticket_id=db_ticket.id,
-            ticket_status=db_ticket.current_status,
+            ticket_id=ticket_id,
+            ticket_status=ticket_status,
             answer=fallback_ans,
             sentiment=sentiment,
             routed_to="Mock Human Queue Service (Circuit Breaker OPEN Fallback)",
             extracted_entities=entities,
             citations=["Circuit Breaker Failure ➔ Outage Fallback"],
             grounded=False,
-            session_id=request.session_id,
+            session_id=ticket_id,
             agent_service_version="v2.5-circuit-breaker-fallback"
         )
 
@@ -764,83 +945,69 @@ async def process_support_query(request: SupportQueryRequest, db: Session = Depe
     answer_text = sanitize_answer(answer_text)
 
     with tracer.start_as_current_span("cloud_sql_record_agent_response") as db_span:
-        db_span.set_attribute("ticket.id", db_ticket.id)
+        db_span.set_attribute("ticket.id", ticket_id)
         db_span.set_attribute("db.system", "postgresql")
         db_span.set_attribute("faq.grounded", grounded)
         db_span.set_attribute("faq.citations_count", len(citations))
-
-        if escalate:
-            # Agent could not resolve (no documented answer, action request, tool error)
-            db_ticket.current_status = "ESCALATED"
-        elif db_ticket.current_status == "NEW":
-            db_ticket.current_status = "IN_PROGRESS"
-
-        agent_msg = Message(
-            ticket_id=db_ticket.id,
-            sender="AGENT",
-            message_text=answer_text
-        )
-        db.add(agent_msg)
-        db.commit()
+        # escalate=True: the agent couldn't resolve it (no documented answer, action request, tool error).
+        ticket_status = record_turn(db, ticket_id, caller, "AGENT", answer_text, escalate=escalate)
 
     # No placeholder citation: clarifying questions legitimately use no tools
     formatted_citations = format_citations(citations)
 
     return SupportQueryResponse(
-        ticket_id=db_ticket.id,
-        ticket_status=db_ticket.current_status,
+        ticket_id=ticket_id,
+        ticket_status=ticket_status,
         answer=answer_text,
         sentiment=sentiment,
         routed_to="Automated RAG Assistant ➔ Human Escalation Queue" if escalate else "Automated RAG Assistant",
         extracted_entities=entities,
         citations=formatted_citations,
         grounded=grounded,
-        session_id=request.session_id,
+        session_id=ticket_id,
         agent_service_version="v2.5-faq-assistant"
     )
 
 @app.post("/api/tickets/create")
 async def create_ticket(request: CreateTicketRequest | None = None, db: Session = Depends(get_db), caller: str = Depends(get_caller)):
     """Creates a new ticket with status 'NEW' owned by the caller. The ID is generated server-side."""
-    db_ticket = Ticket(
-        id=new_ticket_id(),
-        customer_id=caller,
-        current_status="NEW",
-        sentiment="NEUTRAL_FACTUAL"
-    )
-    db.add(db_ticket)
-    db.commit()
-    db.refresh(db_ticket)
-    logger.info(f"Created new ticket in Cloud SQL: id={db_ticket.id}, status=NEW")
-    
+    ticket_id = new_ticket_id()
+    with db.begin():
+        db.add(Ticket(
+            id=ticket_id,
+            customer_id=caller,
+            current_status="NEW",
+            sentiment="NEUTRAL_FACTUAL"
+        ))
+    logger.info(f"Created new ticket in Cloud SQL: id={ticket_id}, status=NEW")
+
     return {
         "status": "success",
-        "ticket_id": db_ticket.id,
-        "ticket_status": db_ticket.current_status,
-        "customer_id": db_ticket.customer_id
+        "ticket_id": ticket_id,
+        "ticket_status": "NEW",
+        "customer_id": caller
     }
 
 @app.post("/api/tickets/{ticket_id}/resolve")
 async def resolve_ticket(ticket_id: str, db: Session = Depends(get_db), caller: str = Depends(get_caller)):
-    db_ticket = get_owned_ticket(db, ticket_id, caller)
-    db_ticket.current_status = "RESOLVED"
-
-    sys_msg = Message(
-        ticket_id=db_ticket.id,
-        sender="SYSTEM",
-        message_text="Ticket has been marked as RESOLVED by the customer."
-    )
-    db.add(sys_msg)
-    db.commit()
+    with db.begin():
+        db_ticket = get_owned_ticket(db, ticket_id, caller, for_update=True)
+        db_ticket.current_status = "RESOLVED"
+        db.add(Message(
+            ticket_id=ticket_id,
+            sender="SYSTEM",
+            message_text="Ticket has been marked as RESOLVED by the customer."
+        ))
 
     # Resolved tickets can't receive new messages, so the agent's memory is no longer needed.
-    await delete_faq_session(db_ticket.id, agent_user_id(caller))
+    # Runs after the commit, so no transaction is held during the Agent Runtime call.
+    await delete_faq_session(ticket_id, agent_user_id(caller))
 
     return {
         "status": "success",
-        "ticket_id": db_ticket.id,
+        "ticket_id": ticket_id,
         "current_status": "RESOLVED",
-        "message": f"Ticket {db_ticket.id} has been marked as RESOLVED."
+        "message": f"Ticket {ticket_id} has been marked as RESOLVED."
     }
 
 @app.get("/api/tickets/{ticket_id}")

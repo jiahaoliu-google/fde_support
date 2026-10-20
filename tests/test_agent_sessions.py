@@ -353,7 +353,7 @@ class TestBackendAgentSessions(unittest.TestCase):
             self.assertFalse(data["grounded"])
 
     def test_sentiment_session_id_is_vertex_safe(self):
-        _RecordingClient.response = _FakeResp(200, json.dumps({"content": {"parts": [{"text": "{}"}]}}))
+        _RecordingClient.response = _FakeResp(200, json.dumps({"content": {"parts": [{"text": '{"sentiment": "NEUTRAL_FACTUAL"}'}]}}))
         run(main.call_sentiment_agent("hello"))
         self.assertRegex(_RecordingClient.posts[0]["json"]["input"]["session_id"], VERTEX_ID_RE)
 

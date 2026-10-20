@@ -17,6 +17,9 @@ class TestHTTPServiceResilience(unittest.TestCase):
         self.client = TestClient(app, headers=iap_headers("alex@example.com"))
         rag_circuit_breaker.record_success()
 
+    def tearDown(self):
+        rag_circuit_breaker.record_success()
+
     @patch("backend.main.call_sentiment_agent")
     def test_downstream_sentiment_agent_offline_escalates_to_human_queue(self, mock_sentiment):
         """
@@ -38,7 +41,8 @@ class TestHTTPServiceResilience(unittest.TestCase):
     def test_downstream_faq_agent_error_retries_and_escalates(self, mock_sentiment, mock_faq):
         """
         Verifies resilience when Sentiment agent succeeds but FAQ agent fails.
-        Retries up to 3 times with 5s delay, then escalates to human queue service.
+        Retries up to 3 times with exponential backoff (jittered), then escalates to the
+        human queue service. The whole question counts as ONE circuit breaker failure.
         """
         mock_sentiment.return_value = {
             "sentiment": "NEUTRAL_FACTUAL",
@@ -57,8 +61,13 @@ class TestHTTPServiceResilience(unittest.TestCase):
         self.assertIn("human queue service", data["answer"])
         # Verify 3 call attempts were made before falling back
         self.assertEqual(mock_faq.call_count, 3)
-        # Verify 2 delays of 5s were executed between attempts
-        self.assertEqual(mock_sleep.call_count, 2)
+        # Verify 2 backoff delays, each within its exponential cap (0.5 s, then 1.0 s)
+        delays = [c.args[0] for c in mock_sleep.call_args_list]
+        self.assertEqual(len(delays), 2)
+        self.assertTrue(0 <= delays[0] <= 0.5 and 0 <= delays[1] <= 1.0, delays)
+        # One failed question = one breaker failure, so the breaker stays CLOSED
+        self.assertEqual(rag_circuit_breaker.failure_count, 1)
+        self.assertEqual(rag_circuit_breaker.state, CircuitState.CLOSED)
 
 if __name__ == "__main__":
     unittest.main()

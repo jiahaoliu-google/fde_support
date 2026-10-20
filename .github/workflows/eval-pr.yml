@@ -63,8 +63,10 @@ jobs:
                       -r agents/sentiment_router/requirements.txt \
                       pyyaml
 
-      - name: Eval harness, KPI math and report tests
-        run: python -m unittest discover -s tests/eval -p "test_*.py" -v
+      - name: Run unit and transaction tests (offline)
+        env:
+          DATABASE_URL: "sqlite:///./test_local.db"
+        run: python -m unittest discover -s tests -p "test_*.py" -v
 
   agent-eval:
     name: Agent eval (100 tickets, report-only)

@@ -24,3 +24,15 @@ Thumbs.db
 
 # Archive & Temp
 archive/
+
+# Local tool state, logs & backups (never commit)
+*.log
+*.bak
+.google-agents-cli/
+.adk/
+
+# Python packaging build output
+*.egg-info/
+
+# Generated eval / grading outputs (reproducible)
+artifacts/

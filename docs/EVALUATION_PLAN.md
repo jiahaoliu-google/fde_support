@@ -32,26 +32,28 @@ The evaluation strategy explicitly separates **Offline Evaluation** (blocking pr
 | 1 | Routing accuracy (TDD North Star) | ≥ 95% | All 100 | Deterministic: predicted vs. labelled sentiment | PR |
 | 5 | Urgent/Frustrated **F1** (TDD CI gate) | ≥ 0.95 | All 100 | Deterministic: precision / recall / F1 + confusion matrix | PR |
 | 9 | Urgent tickets bypass RAG to the human queue (Scoping) | 100% | 25 urgent cases | pytest on backend routing logic (`routed_to`, FAQ agent never called) | PR |
-| 6 | ROUGE-L vs. historical brand reply (TDD) | ≥ 0.35 | Search-ready, in-corpus cases only | Deterministic, after text normalization | PR |
-| 7 | BLEU vs. historical brand reply (TDD) | ≥ 0.30 | Search-ready, in-corpus cases only | Deterministic, corpus-level BLEU | PR |
-| 4 | Grounding recall (TDD North Star) | ≥ 85% | Search-ready, in-corpus cases | LLM judge: share of golden **key facts** present in the answer | Nightly |
-| 8 | RAG faithfulness (TDD semantic QA) | ≥ 90% | Every case that searched | LLM judge (Gemini 3.5 Flash): claims supported by the retrieved records | Nightly |
-| G1 | Search gating: no search on vague queries *(internal target)* | ≥ 95% | 15 vague cases + turn 1 of multi-turn cases | Deterministic: no `grounding_metadata` retrieval in that turn | PR |
-| G2 | Search gating: search on specific queries *(internal target)* | ≥ 95% | Search-ready cases | Deterministic: retrieval present | PR |
+| 6 | ROUGE-L vs. historical brand reply (TDD) | ≥ 0.35 | S cases + turn 2 of M (cases with a real historical reply) | Deterministic, after text normalization; mean of per-case LCS F1 | PR |
+| 7 | BLEU vs. historical brand reply (TDD) | ≥ 0.30 | S cases + turn 2 of M | Deterministic, corpus-level BLEU-4 with brevity penalty | PR |
+| 4 | Grounding recall (TDD North Star) | ≥ 85% | S cases + turn 2 of M | LLM judge: share of golden **key facts** present in the answer | Nightly |
+| 8 | RAG faithfulness (TDD semantic QA) | ≥ 90% | Every case that searched | LLM judge (Gemini 3.5 Flash, per TDD): no hallucinations **and** no agent policy violations | Nightly |
+| G1 | Search gating: no search on vague queries *(internal target)* | ≥ 95% | 15 vague cases + turn 1 of multi-turn cases | Deterministic: no `search_support_records` `function_call` in that turn | PR |
+| G2 | Search gating: search on specific queries *(internal target)* | ≥ 95% | Search-ready cases | Deterministic: `search_support_records` `function_call` present | PR |
 | G3 | Clarifying question quality *(internal target)* | ≥ 90% | Vague turns | LLM judge with per-case rubric | Nightly |
-| D1 | Retrieval hit@5 *(diagnostic, no gate)* | Report only | Search-ready, in-corpus cases | Golden `source_doc_id` found among retrieved doc IDs | — |
+| D1 | Retrieval hit@5 *(diagnostic, no gate)* | Report only | S cases | Golden `source_doc_id` found among `doc_id`s in the `search_support_records` `function_response` | — |
 
 ### Deterministic System, Latency & Cost Metrics
 
+The TDD asks to track model cost and latency overhead ("Operational & Business Intelligence") but sets **no numeric targets** for them. Targets below marked *(proposed)* are project choices; please confirm or change them.
+
 | # | Metric | Target / Benchmark | Evaluated on | Measurement Method | Gate / Reporting |
 |---|---|---|---|---|---|
-| M1 | End-to-End Latency (P50 / P90 / P95 / Max) | P95 ≤ 3.0s | All 100 cases | `time.perf_counter()` timer around agent execution per turn | PR & Nightly |
-| M2 | Time-To-First-Token (TTFT) | P95 ≤ 800ms | Streaming turns | Timer from invocation start to first output event token | Nightly |
-| M3 | Token Accounting (Input / Output / Cached) | Track & report totals | All 100 cases | Aggregated from ADK step `usage_metadata` (`input`, `output`, `cached`) | PR & Nightly |
-| M4 | Estimated USD Cost per 1K Tickets | Target ≤ \$5.00 / 1K | All 100 cases | Exact token count × model pricing tiers (FAQ: Gemini 2.5 Pro, Router: Flash) + search query fees | PR & Nightly |
-| M5 | RAG Search Overhead (P95 latency) | P95 ≤ 1.2s | Search cases | Timer around `VertexAiSearchTool` / Discovery Engine execution | Diagnostic |
-| M6 | API Error / Timeout Rate | 0.0% | All 100 cases | Count of HTTP 4xx/5xx errors, rate limits (429), or timeout exceptions | PR (Gate: 0%) |
-| M7 | Execution Step & Tool Call Count | Max ≤ 3 steps/turn | All turns | Deterministic audit of intermediate runner steps per turn | PR |
+| M1 | End-to-End Latency (P50 / P90 / P95 / Max) | P95 ≤ 3.0s *(proposed)* | All 100 cases | Timer around agent execution per turn | PR & Nightly |
+| M2 | Time-To-First-Token (TTFT) | P95 ≤ 800ms *(proposed)* | Streaming turns | Timer from invocation start to first output event token | Nightly |
+| M3 | Token Accounting (Input / Output / Thinking / Cached) | Track & report totals | All 100 cases | Aggregated from Gemini `usage_metadata` (`prompt_token_count`, `candidates_token_count`, `thoughts_token_count`, `cached_content_token_count`) | PR & Nightly |
+| M4 | Estimated USD Cost per 1K Tickets | Report only (no TDD target) | All 100 cases | Token counts × rates in [pricing.yaml](file:///Users/jiahaoliu/ws/fde_support/tests/eval/pricing.yaml) + search query fees | PR & Nightly |
+| M5 | RAG Search Overhead (P95 latency) | P95 ≤ 1.2s *(proposed)* | Search cases | Duration of the `search_support_records` tool call (Discovery Engine) | Diagnostic |
+| M6 | API Error / Timeout Rate | 0.0% *(proposed)* | All 100 cases | Count of HTTP 4xx/5xx errors, rate limits (429), or timeout exceptions | PR (Gate: 0%) |
+| M7 | Execution Step & Tool Call Count | Max ≤ 3 steps/turn *(proposed)* | All turns | Deterministic audit of intermediate runner steps per turn | PR |
 
 > [!NOTE]
 > Infrastructure KPIs are covered elsewhere and are out of scope here:
@@ -66,38 +68,38 @@ The evaluation strategy explicitly separates **Offline Evaluation** (blocking pr
 ## Key Requirements & Considerations
 
 > [!IMPORTANT]
-> **Human labelling is required (about 1–2 hours).** The scripts pre-label candidates with Gemini, but the TDD requires the router F1 to be computed against **human labels**. You'll review a CSV of about 140 candidates and confirm or fix: sentiment, search-readiness, the paraphrased prompt, and the key facts. The golden set is frozen only after that review.
+> **Human review of labels is required (about 1 hour).** The TDD computes router F1 against **human labels**. The golden set is pre-labelled by keyword matching, which has known misses. Examples from the current set: `U-009` ("worst score yet"), `U-011` ("worst UI's") and `U-021` ("broken down train") may not be urgent. Review the 25 U cases and a sample of S cases before freezing.
 
 > [!WARNING]
 > **The BLEU ≥ 0.30 / ROUGE-L ≥ 0.35 targets will probably fail at first.** The references are short tweets (for example "DM us your order number"). The agent writes longer synthesized answers. The pipeline will report the real baseline and will **not** lower thresholds on its own. If the baseline is far below target, the two options are: (a) ask the agent for tweet-length answers, or (b) renegotiate the threshold in the TDD with your lead.
 
 > [!TIP]
-> **Deterministic Token & Cost Accounting Rules by Model:**
-> - **Token Extraction:** ADK `Event` objects contain step-level `usage_metadata` containing `input_token_count`, `output_token_count`, and `cached_content_token_count`.
-> - **Model-Specific Pricing Tiers:**
->   - **Sentiment Router (`sentiment_router_agent`)**: `gemini-2.5-flash` (\$0.075 / 1M input, \$0.30 / 1M output, \$0.01875 / 1M cached).
->   - **FAQ Assistant (`faq_assistant_agent`)**: `gemini-2.5-pro` (\$1.25 / 1M input, \$5.00 / 1M output, \$0.3125 / 1M cached).
->   - **Evaluation Judges (`eval_config.yaml`)**: `gemini-3.5-flash` (\$0.15 / 1M input, \$0.60 / 1M output).
->   - **Vertex AI Search Tool**: \$0.002 / search query execution.
-> - Costs are computed per ticket segment (Urgent vs FAQ) and extrapolated to cost per 1,000 processed customer tickets.
+> **Token & Cost Accounting.** All rates live in [pricing.yaml](file:///Users/jiahaoliu/ws/fde_support/tests/eval/pricing.yaml) (checked 2026-10-19):
+> - **Sentiment Router**: `gemini-2.5-flash`, \$0.30 / 1M input, \$2.50 / 1M output, \$0.03 / 1M cached.
+> - **FAQ Assistant**: `gemini-2.5-pro`, \$1.25 / 1M input, \$10.00 / 1M output, \$0.125 / 1M cached (≤200K-token prompts).
+> - **LLM judge**: `gemini-3.5-flash`, rate **not yet verified** (left `null`).
+> - **Search** (`search_support_records` → Discovery Engine): \$1.50 / 1K queries (Standard) or \$4.00 / 1K (Enterprise). The datastore edition still needs confirming.
+> - **Formula:** `prompt_token_count` already *includes* cached tokens, and thinking tokens are billed as output:
+>   `cost = (prompt − cached)·in + cached·cache + (candidates + thoughts)·out`.
+> - Costs are reported per segment (urgent tickets only hit the router) and scaled to cost per 1,000 tickets.
 
 ---
 
 ## Architectural & Rule Questions
 
-> [!IMPORTANT]
-> **Q1: Rule 4 conflicts with "always grounded to RAG".** [agent.py](file:///Users/jiahaoliu/ws/fde_support/agents/faq_assistant/agent.py) tells the agent to answer from *general knowledge* when no records are found. That lowers faithfulness (#8) and contradicts your requirement. **Proposed:** when no records are found, the agent says it couldn't find a documented answer, offers escalation, and sets `grounded=false`. The 5 out-of-corpus golden cases test this.
+> [!NOTE]
+> **Q1 (resolved): out-of-corpus behaviour.** [agent.py](file:///Users/jiahaoliu/ws/fde_support/agents/faq_assistant/agent.py#L115-L120) now says: when `search_support_records` returns nothing relevant, say no documented answer was found, offer a human agent, and set `grounded=false` and `escalate=true`. The 5 out-of-corpus (O) golden cases test this.
 
-> [!IMPORTANT]
-> **Q2: How do we detect searches?** `VertexAiSearchTool` is a *model-internal* tool. It never shows up as a `function_call` in traces, so the built-in `multi_turn_tool_use_quality` and `hallucination` metrics can't see it.
-> - **(A, recommended for now)** Leave the agent unchanged. The harness reads `grounding_metadata` (retrieval queries, retrieved doc IDs, snippets) from ADK events and passes the snippets to custom judges as `{context}`.
-> - **(B)** Replace it with a `FunctionTool` wrapper that calls the Discovery Engine search API directly. Searches then appear as real tool calls, which unlocks the built-in tool-use and hallucination metrics and gives full control over the retrieved records. This changes the production agent and needs a redeploy.
+> [!NOTE]
+> **Q2 (resolved): how searches are detected.** `search_support_records` is a regular ADK `FunctionTool` that calls the Discovery Engine API directly ([tools.py](file:///Users/jiahaoliu/ws/fde_support/agents/faq_assistant/tools.py#L196)). Every search therefore appears in traces as a `function_call` (the query) plus a `function_response` (the `doc_id`s and snippets). Consequences:
+> - Gating (G1/G2), hit@5 (D1) and citation checks read the trace directly; no `grounding_metadata` parsing is needed.
+> - The built-in Agent Platform metrics `hallucination` and `multi_turn_tool_use_quality` can see the searches and are usable.
 
 > [!NOTE]
 > **Q3: KPI definitions.**
-> - **Faithfulness:** mean claim-level support score. "Strict % of cases with zero unsupported claims" is also reported.
+> - **Faithfulness:** mean per-case score from the Gemini 3.5 Flash judge. A case scores 0 if it contains an unsupported claim **or** breaks an agent policy (doc IDs in the answer text, disclosing the retrieval mechanism, a bare "DM us" reply). "Strict % of cases with zero unsupported claims" is also reported.
 > - **Grounding recall:** mean of (key facts present ÷ key facts expected) per case.
-> - **BLEU / ROUGE normalization:** @handles, URLs, agent sign-offs (e.g. `^AB`) and emoji are removed from both sides before scoring.
+> - **BLEU / ROUGE normalization:** HTML entities are decoded; @handles, URLs and agent sign-offs (e.g. `^AB`) are removed; emoji and punctuation are dropped by the tokenizer. Implemented in [static_rubric_evaluator.py](file:///Users/jiahaoliu/ws/fde_support/tests/eval/static_rubric_evaluator.py).
 > - **Latency & Throughput:** E2E Latency is measured per turn in milliseconds (`ms`). TTFT is captured when streaming response chunks.
 
 ---
@@ -121,17 +123,18 @@ With 25 positive urgent cases, F1 ≥ 0.95 leaves room for only 1–2 router mis
 
 The local file [archive/twcs/twcs.jsonl](file:///Users/jiahaoliu/ws/fde_support/archive/twcs/twcs.jsonl) contains the exact 100,000 records indexed in `fde-support-faq-datastore-v2`. Each record has the fields `id`, `customer_question` and `reference_brand_response_text`.
 
-1. **Heuristic filter.** Keep customer questions with at least 8 words. Drop replies that are only "DM us" or "please follow us", and drop replies with no actionable content.
-2. **Gemini pre-labelling** (Gemini 2.5 Flash, temperature 0, JSON output). For each candidate, produce:
-   - sentiment
-   - answerability score
-   - a paraphrased prompt, so the test doesn't just retrieve the verbatim tweet
-   - 1–4 atomic key facts from the brand reply
-3. **Stratified sampling.** Spread across brands such as AppleSupport, AmazonHelp, SpotifyCares and airlines, and oversample urgent candidates. Write candidate cases for review.
-4. **Human review / Automated Validation.** Confirm labels, key facts, and dynamic rubrics.
-5. **Freeze** to `golden_set_v1.json` (100 cases) and commit it to git. Any later change creates `v2`, so runs stay comparable.
+Implemented in [scripts/golden_set.py](file:///Users/jiahaoliu/ws/fde_support/scripts/golden_set.py) (deterministic, `random.seed(42)`):
 
-V, M and O cases are generated from templates and actual RAG corpus questions (e.g. "how do I return?", "is shipping free?"). M cases reuse an S-type source record for turn 2.
+1. **Heuristic filter.** Decode HTML entities and strip @handles and URLs. Keep customer questions with ≥ 6 words and replies with ≥ 5 words. Drop replies that are only "DM us" / "follow us". This leaves 86,676 records.
+2. **Keyword pre-labelling.** A question is `URGENT_FRUSTRATED` if it contains any phrase from the urgent lexicon as a **whole word or phrase** (regex `\b…\b`). The lexicon includes the TDD's own examples ("very upset", "late shipping", "charge error"). 4,982 records match.
+3. **Sampling.** Shuffle, take the first 25 urgent matches for U, and take non-matching records for S (45) and M (10).
+4. **Key facts.** Up to the first 3 sentences of the historical brand reply.
+5. **Human review**, then **freeze** to `golden_set_v1.json` and commit it. Any later change creates `v2`, so runs stay comparable.
+
+V and O cases come from fixed templates. M cases reuse an S-type source record for turn 2.
+
+> [!WARNING]
+> **Known limitation:** S prompts are the cleaned **verbatim** customer tweets, and those exact tweets are in the search index. Retrieval is therefore easier than in production, which inflates hit@5 and probably grounding recall. Paraphrasing the S prompts (by Gemini or by hand) would fix this; it is not done yet.
 
 ### Record schema (ADK `EvaluationDataset`-compatible, with extra fields)
 
@@ -160,18 +163,21 @@ V, M and O cases are generated from templates and actual RAG corpus questions (e
     "latency_ms": 1420,
     "ttft_ms": 350,
     "token_usage": {
-      "input_tokens": 850,
-      "output_tokens": 120,
-      "cached_tokens": 512,
-      "total_tokens": 970
+      "prompt_token_count": 850,
+      "cached_content_token_count": 512,
+      "candidates_token_count": 120,
+      "thoughts_token_count": 0,
+      "total_token_count": 970
     },
-    "estimated_cost_usd": 0.000185,
+    "estimated_cost_usd": 0.003187,
     "search_latency_ms": 680,
     "step_count": 1,
     "status_code": 200
   }
 }
 ```
+
+The sample cost uses Gemini 2.5 Pro plus one Standard search: (338 × \$1.25 + 512 × \$0.125 + 120 × \$10.00) / 1M + \$0.0015 = \$0.003187.
 
 M cases use `agent_data.turns` with scripted user turns instead of `prompt`.
 
@@ -229,107 +235,105 @@ Rather than relying solely on static generic metrics, the evaluator applies **Dy
 
 ## Comprehensive Static Evaluation Rubric (TDD-Aligned)
 
-Based on the core requirements and quality gates in [jliu_support_tdd.pdf](file:///Users/jiahaoliu/ws/fde_support/jliu_support_tdd.pdf), every generated answer ($A_i$) produced by the FAQ Agent is evaluated against a standardized evaluation rubric.
+Every FAQ Agent answer ($A_i$) in scope is scored against the rubric below. Implementation: [static_rubric_evaluator.py](file:///Users/jiahaoliu/ws/fde_support/tests/eval/static_rubric_evaluator.py), with 18 hand-computed unit tests in [test_static_rubric_evaluator.py](file:///Users/jiahaoliu/ws/fde_support/tests/eval/test_static_rubric_evaluator.py).
+
+**Where each rule comes from:**
+
+| Element | Source |
+|---|---|
+| Faithfulness ≥ 90%, judged by Gemini 3.5 Flash, covering "hallucinations or agent policy violations" | TDD § Semantic QA Evaluation |
+| Grounding recall ≥ 85% | TDD North Star metrics |
+| ROUGE-L ≥ 0.35 and BLEU ≥ 0.30 vs. the historical agent reply | TDD § Statistical & Heuristic QA (PR gate) |
+| Policy checks (no doc IDs in the answer, no disclosure of the retrieval mechanism, no bare "DM us") | FAQ agent instructions ([agent.py](file:///Users/jiahaoliu/ws/fde_support/agents/faq_assistant/agent.py#L115-L135)), counted as "agent policy violations" |
+| Output PII check | **Project addition.** The TDD only requires Model Armor to redact *inputs*. |
+| Dimension weights (35/30/25/10) | **Project choice.** Used only for an informational composite; the pass/fail decision comes from the TDD gates. |
 
 > [!NOTE]
 > **Applicability & Segment Scope**:
-> - **Segment U (Urgent / Frustrated)**: **EXCLUDED from FAQ Answer Rubric.** Routed directly to human queue (`HUMAN_QUEUE`) without invoking FAQ Agent or generating AI responses. Evaluated separately by **Router Classification Accuracy & F1 Score** (Target F1 $\ge 0.95$).
-> - **Segment V (Vague, Turn 1)**: **EXCLUDED from RAG Answer Rubric.** Suppresses search (`searched == False`) and asks a clarifying question. Evaluated separately by **Search Suppression Gating G1** (Target $\ge 90\%$).
-> - **Segments S & O (Neutral & Search-Ready) + Turn 2 of M**: **APPLICABLE.** Full 4-Dimension Grounded RAG Answer Rubric is strictly enforced here.
+> - **Segment U (Urgent / Frustrated)**: **EXCLUDED.** Routed straight to the human queue; no AI answer is generated. Scored by **router F1** (target ≥ 0.95).
+> - **Segment V (Vague, single turn)**: **EXCLUDED.** No search; the agent asks a clarifying question. Scored by **search gating G1** (target ≥ 95%) and G3.
+> - **Segments S, O and turn 2 of M**: **APPLICABLE.** BLEU/ROUGE-L use only S and M, because O references are synthetic.
 
 ```
-┌────────────────────────────────────────────────────────────────────────────────────────┐
-│                        COMPREHENSIVE STATIC EVALUATION RUBRIC                          │
-├────────────────────────────────────────────────────────────────────────────────────────┤
-│ 1. Groundedness & Faithfulness (30%)     │ • Zero Uncertified Hallucinations           │
-│                                           │ • Out-of-Corpus Fallback Handling          │
-│                                           │ • Citation Integrity                       │
+┌──────────────────────────────────────────────────────────────────────────────────────┐
+│            STATIC EVALUATION RUBRIC (RAG RESPONSES: S, O, M turn 2)                    │
+├───────────────────────────────────────────┬────────────────────────────────────────────┤
+│ 1. Faithfulness (TDD ≥ 90%)               │ • No unsupported claims (LLM judge)        │
+│                                           │ • Out-of-corpus fallback (O cases)         │
+│                                           │ • Any policy violation → case scores 0     │
 ├───────────────────────────────────────────┼────────────────────────────────────────────┤
-│ 2. Grounding Recall & Key Facts (25%)    │ • Key Fact Entailment (Target ≥ 85%)       │
-│                                           │ • Step-by-Step Actionable Completeness     │
+│ 2. Grounding Recall (TDD ≥ 85%)           │ • Key facts entailed by the answer         │
 ├───────────────────────────────────────────┼────────────────────────────────────────────┤
-│ 3. Privacy, Safety & Policy (20%)        │ • PII Leakage Redaction (Model Armor)       │
-│                                           │ • Brand Tone & Non-Adversarial Safety      │
-│                                           │ • Prevention of Empty DM Redirects         │
+│ 3. Policy Compliance (zero tolerance)     │ • Agent-instruction rules (see table)      │
+│                                           │ • Output PII (project addition)            │
 ├───────────────────────────────────────────┼────────────────────────────────────────────┤
-│ 4. Intent & Clarification Gating (15%)   │ • Search Suppression on Vague Queries      │
-│                                           │ • Single Targeted Clarifying Question      │
-├───────────────────────────────────────────┼────────────────────────────────────────────┤
-│ 5. Lexical & Structural Metrics (10%)     │ • ROUGE-L Score (Target ≥ 0.35)            │
-│                                           │ • Corpus BLEU Score (Target ≥ 0.30)        │
-└────────────────────────────────────────────────────────────────────────────────────────┘
+│ 4. Lexical (TDD PR gate)                  │ • Mean ROUGE-L ≥ 0.35                      │
+│                                           │ • Corpus BLEU-4 ≥ 0.30                     │
+└───────────────────────────────────────────┴────────────────────────────────────────────┘
 ```
 
 ### Detailed Rubric Scoring Specifications
 
-#### Dimension 1: Groundedness & Faithfulness (Weight: 30%)
-* **Target Gate**: $\ge 90\%$ Faithfulness
-* **Sub-Criteria**:
-  - **S1.1 Zero Hallucinations [Pass/Fail]**: The answer $A_i$ must contain zero factual claims, return windows, warranty terms, or phone numbers that are absent from the retrieved context snippets $C_i$.
-  - **S1.2 Out-of-Corpus Fallback [Pass/Fail]**: When $C_i$ contains no matching records (Segment O), $A_i$ must state that no documented policy was found and offer human escalation rather than fabricating an answer.
-  - **S1.3 Citation Accuracy [Pass/Fail]**: All document IDs cited in $A_i$ must strictly match source document IDs in $C_i$.
+#### Dimension 1: Faithfulness
+* **Gate (TDD)**: mean ≥ 0.90 across applicable cases.
+* **S1.1 No unsupported claims**: every factual claim (steps, windows, fees, phone numbers) must be supported by the `search_support_records` / `get_order_status` responses in that turn. Scored by the Gemini 3.5 Flash judge and passed in as `judge_scores["faithfulness"]`.
+* **S1.2 Out-of-corpus fallback (O)**: rule-based. The answer must say no documented answer exists, and the agent must return `grounded=false` and `escalate=true`.
+* **S1.3 Policy override**: any Dimension 3 violation sets the case score to 0.
+* Citation integrity (cited `doc_id`s must appear in the tool response) is checked by a separate code metric on the platform; see the implementation plan.
 
-#### Dimension 2: Grounding Recall & Key Fact Coverage (Weight: 25%)
-* **Target Gate**: $\ge 85\%$ Grounding Recall
-* **Sub-Criteria**:
-  - **S2.1 Key Fact Entailment [1–5 Scale]**: Measures the proportion of golden reference key facts ($K_i$) that are semantically entailed by $A_i$:
-    $$\text{Recall Score} = \frac{\text{Count of Entailed Key Facts}}{|K_i|}$$
-  - **S2.2 Step Actionability [1–5 Scale]**: Assesses whether $A_i$ provides complete actionable instructions without omitting critical prerequisites (e.g. holding case button for 15 seconds to reset AirPods).
+#### Dimension 2: Grounding Recall
+* **Gate (TDD)**: mean ≥ 0.85 over S and M cases.
+* $\text{Recall}_i = \frac{\text{entailed key facts}}{|K_i|}$, judged by the LLM judge and passed in as `judge_scores["grounding_recall"]`.
 
-#### Dimension 3: Privacy, Safety & Policy Compliance (Weight: 20%)
-* **Target Gate**: 100% Compliance (Zero Tolerance)
-* **Sub-Criteria**:
-  - **S3.1 PII Redaction [Pass/Fail]**: $A_i$ must contain zero unmasked Credit Card numbers, Social Security Numbers, emails, or personal phone numbers (enforces Model Armor compliance).
-  - **S3.2 Tone & Safety [Pass/Fail]**: $A_i$ must maintain a professional, empathetic support tone and avoid making unapproved legal or financial commitments.
-  - **S3.3 Actionable Quality [Pass/Fail]**: Rejects low-effort unhelpful replies that merely state "DM us for help" when $C_i$ provides the answer.
+#### Dimension 3: Policy Compliance
+* **Gate**: zero violations (deterministic regex checks).
+* `doc_id_in_answer`, `retrieval_disclosure` and `lazy_dm_redirect` come from the agent's instructions. `pii_email`, `pii_ssn` and `pii_card` are the project-added output checks.
 
-#### Dimension 4: Query Intent & Clarification Gating (Weight: 15%)
-* **Target Gate**: $\ge 90\%$ Gating Compliance
-* **Sub-Criteria**:
-  - **S4.1 Search Suppression [Pass/Fail]**: On vague single-turn queries (Segment V), `VertexAiSearchTool` execution must be suppressed (`searched == False`).
-  - **S4.2 Targeted Clarification [1–5 Scale]**: When missing critical product context, $A_i$ must ask exactly 1 targeted clarifying question without assuming unstated facts.
+#### Dimension 4: Lexical
+* **Gate (TDD)**: mean ROUGE-L ≥ 0.35 and **corpus** BLEU-4 ≥ 0.30, over S and M cases.
+* ROUGE-L is the LCS F1. BLEU uses pooled n-gram counts with a brevity penalty (Papineni 2002). Per-case smoothed BLEU is reported as a diagnostic only.
 
-#### Dimension 5: Lexical & Heuristic Similarity (Weight: 10%)
-* **Target Gate**: ROUGE-L $\ge 0.35$, BLEU $\ge 0.30$
-* **Sub-Criteria**:
-  - **S5.1 ROUGE-L Score**: Evaluates longest common subsequence overlap against normalized golden reference text ($R_i$).
-  - **S5.2 Corpus BLEU Score**: Evaluates 4-gram precision with brevity penalty across all test responses against golden reference corpus ($R$).
+> [!WARNING]
+> **Without judge scores, the evaluator falls back to lexical proxies** for Dimensions 1–2 and adds a `warning` to the aggregate. Proxy results must not be reported as the TDD faithfulness or recall gate.
 
 ---
 
 ### Golden set tooling
 
-- **[NEW] `scripts/golden_set.py`**:
-  - `build`: filters `twcs.jsonl`, runs Gemini pre-labelling and paraphrasing, does stratified sampling and writes `tests/eval/golden/candidates_review.csv`. Templated V, M and O cases are also generated here.
-  - `freeze`: validates the reviewed CSV (segment counts, every doc ID exists in `twcs.jsonl`, schema) and writes `golden_set_v1.json`.
+- **[DONE] [scripts/golden_set.py](file:///Users/jiahaoliu/ws/fde_support/scripts/golden_set.py)**:
+  - One command, `python3 scripts/golden_set.py`, with seed 42. It loads `twcs.jsonl`, filters, applies whole-word keyword labels, samples by segment and writes `golden_set_v1.json` directly.
+  - Gemini pre-labelling and paraphrasing are **not** implemented (see the known limitation above).
+  - *(Planned)* A `freeze` check that every `source_doc_id` exists in `twcs.jsonl` and segment counts match.
 
 - **[NEW] `tests/eval/golden/golden_set_v1.json`**:
   - The frozen 100-ticket golden set, under version control.
 
+- **[DONE] [build_eval_datasets.py](file:///Users/jiahaoliu/ws/fde_support/scripts/build_eval_datasets.py)**: the **only** path into the rubric judge. It keeps a case only if `expected_sentiment == NEUTRAL_FACTUAL` **and** `search_ready == true` (60 cases: S 45, O 5, M 10). It exits with an error if any U or V case gets through.
+- **[DONE] [eval_config_faq_rubric.yaml](file:///Users/jiahaoliu/ws/fde_support/tests/eval/eval_config_faq_rubric.yaml)**: `rubric_scope_check` (second guard), the built-in `hallucination` metric, and three Gemini 3.5 Flash judges: `rag_faithfulness`, `grounding_key_fact_recall` (reads `{key_facts}`) and `case_rubric_adherence` (reads `{rubric_items}`). The judges read evidence from `{agent_data}` (the `search_support_records` results). Platform constraints found in the smoke run:
+  - `judge_model` must be a full resource name: `projects/<p>/locations/global/publishers/google/models/gemini-3.5-flash`.
+  - Each case may have only **one** rubric group; built-in metrics fail otherwise.
+  - Templates resolve **top-level** case fields only. `{rubrics}` and dotted paths are not filled in, so the builder adds a flat `rubric_items` list.
+
 ### Inference harness
 
-- **[NEW] `tests/eval/run_inference.py`**:
-  - Runs `sentiment_router_agent` and `faq_assistant_agent` **in-process** with ADK `Runner` and `InMemorySessionService`.
-  - For every turn it records:
-    - the parsed answer, citations and `grounded` flag
-    - `searched` (whether `grounding_metadata` retrieval is present)
-    - retrieval queries, retrieved doc IDs and snippets
-    - **Deterministic execution metrics**: E2E turn latency, TTFT, `usage_metadata` (input, output, cached tokens), tool search latency, step count, and error/exception status.
-  - Plays the scripted user turns for M cases.
-  - Writes `artifacts/eval/<ts>/raw_results.jsonl`, plus `traces.json` in `EvaluationDataset` grading format with `response`, `reference`, `context`, and execution metrics filled in, ready for `agents-cli eval grade`.
-  - `--target deployed` sends the same cases to the Agent Runtime endpoints for pre-release checks.
+- **[DONE] [run_inference.py](file:///Users/jiahaoliu/ws/fde_support/tests/eval/run_inference.py)**:
+  - Runs `sentiment_router_agent` and `faq_assistant_agent` **in-process** with ADK `Runner` and `InMemorySessionService` (pre-deployment), against real Vertex AI Gemini and the Discovery Engine datastore.
+  - Mirrors `/api/chat` routing per message: fresh sentiment session, FAQ only when `NEUTRAL_FACTUAL`, fail closed on URGENT / invalid / errored classifications. Plays the scripted user turns for M cases on one FAQ session.
+  - For every turn it records the sentiment label, parsed FAQ answer (`grounded`, `escalate`), search queries, `doc_id`s and tool status, plus **deterministic execution metrics**: turn latency, per-agent latency, search tool latency, `usage_metadata` (prompt, cached, candidates, thoughts), LLM call count, cost, and error type (timeout / rate_limited / server_error / client_error).
+  - Writes `artifacts/eval/<ts>/raw_results.jsonl` and `system_metrics.json`. `--suite router` runs only the sentiment agent; `--enforce-gates` exits 1 on a failed gate.
+  - *(Planned)* TTFT (needs streaming), `traces.json` in grading format, and `--target deployed`.
 
 ### Metrics, judges and report
 
-- **[NEW] `tests/eval/kpi_metrics.py`**:
-  - Deterministic metrics: accuracy, precision, recall, F1 and confusion matrix; text normalization plus ROUGE-L and corpus BLEU; gating compliance (G1, G2); retrieval hit@5; **system performance metrics**: P50/P90/P95/Max latency, TTFT distribution, token accounting (input/output/cached per turn and total), financial cost calculation (per case and per 1K tickets), search overhead, and API error/timeout rates.
+- **[DONE] [kpi_metrics.py](file:///Users/jiahaoliu/ws/fde_support/tests/eval/kpi_metrics.py)**: accuracy, per-class precision / recall / F1 and confusion matrix (F1 is `None`, not 0 or 1, when undefined); P50/P90/P95/max latency; token accounting; cost from `pricing.yaml` (an unknown price gives `None`, never \$0). ROUGE-L and BLEU stay in `static_rubric_evaluator.py`. *(Planned)* G1/G2 gating compliance and hit@5.
 
 - **[NEW] `tests/eval/eval_config.yaml`**:
   - The LLM-judge metrics above: `prompt_template`s, `rubric_group_name: case_rubrics`, judge model and sampling count.
 
-- **[NEW] `tests/eval/report.py`**:
-  - Merges the quality metrics, deterministic system performance metrics, and LLM-judge results into `kpi_report.md` / `kpi_report.json`, with a PASS/FAIL table per KPI/Metric and detailed latency/cost/token distribution tables.
-  - Exits non-zero if any gate (routing accuracy/F1, deterministic gating, ROUGE/BLEU, latency P95, or 0% error rate) in the selected mode fails.
+- **[DONE] [generate_kpi_report.py](file:///Users/jiahaoliu/ws/fde_support/scripts/generate_kpi_report.py)** (instead of `tests/eval/report.py`):
+  - Merges `system_metrics.json`, the trace file (ROUGE-L / BLEU) and the grade file (LLM judges) into `kpi_report.md` / `kpi_report.json`. **No value is hard-coded:** a KPI without a source artifact shows NOT MEASURED. Each row shows its source and sample size; findings are generated from the data.
+  - TDD thresholds come from `static_rubric_evaluator.TDD_GATES` (grounding recall 0.85).
+  - `--enforce-gates` exits non-zero if any measured gate fails.
 
 ### Routing gate
 
@@ -349,11 +353,11 @@ Based on the core requirements and quality gates in [jliu_support_tdd.pdf](file:
 ## Execution Workflow
 
 1. **Prerequisite**: run `gcloud auth application-default login`.
-2. **Dependency Scan**: Run the dependency scan, then add `rouge-score` and `sacrebleu` to dev dependencies.
+2. **Dependencies**: none new. ROUGE-L and BLEU are implemented in pure Python, so `rouge-score` and `sacrebleu` aren't needed.
 3. **Golden Set Build & Review**:
-   - `python scripts/golden_set.py build`
-   - Human review of `candidates_review.csv`
-   - `python scripts/golden_set.py freeze`
+   - `python3 scripts/golden_set.py` regenerates `tests/eval/golden/golden_set_v1.json` deterministically.
+   - Human review of the 25 U cases (and a sample of S) in that file. Fix labels by hand, then commit.
+   - `python3 -m unittest tests/eval/test_static_rubric_evaluator.py` checks the metrics and the keyword matcher.
 4. **Baseline Execution**:
    - `bash scripts/run_eval_pipeline.sh --mode nightly`
    - Generates `kpi_report.md` and `kpi_report.json`.

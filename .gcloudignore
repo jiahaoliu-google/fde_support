@@ -1,0 +1,17 @@
+.gcloudignore
+.git
+.gitignore
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+*.db
+*.pdf
+archive/
+deployment/
+tests/
+cloud-sql-proxy
+node_modules/
+frontend/node_modules/
+.adk/
+.google-agents-cli/

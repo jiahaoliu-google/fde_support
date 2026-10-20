@@ -8,7 +8,7 @@ from backend.config import settings
 
 logger = logging.getLogger(__name__)
 
-DATABASE_URL = settings.get_database_url()
+DATABASE_URL = settings.get_database_url()  # contains the password: never log it directly
 
 # Configure engine connect args & pooling for SQLite vs Cloud SQL (PostgreSQL/MySQL)
 connect_args = {}
@@ -31,6 +31,10 @@ engine = create_engine(
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+def safe_database_url() -> str:
+    """The engine URL with the password masked, for logs and diagnostics."""
+    return engine.url.render_as_string(hide_password=True)
+
 def init_db():
     """
     Method 1: ORM Auto-Creation.
@@ -38,7 +42,7 @@ def init_db():
     Creates 'tickets' and 'messages' tables in Cloud SQL or local database
     without requiring schema.sql files or GCS buckets!
     """
-    logger.info(f"Initializing database tables via SQLAlchemy ORM on target: {DATABASE_URL}")
+    logger.info(f"Initializing database tables via SQLAlchemy ORM on target: {safe_database_url()}")
     Base.metadata.create_all(bind=engine)
     logger.info("Database tables 'tickets' and 'messages' initialized successfully!")
 

@@ -2,6 +2,8 @@ import os
 import certifi
 import logging
 import subprocess
+import threading
+import time
 import httpx
 from urllib.parse import urlsplit
 from fastapi import FastAPI, HTTPException, Request, Response
@@ -85,7 +87,40 @@ async def require_identity(request: Request) -> IapIdentity:
         logger.error(f"IAP verification error on {request.url.path}: {type(e).__name__}")
         raise HTTPException(status_code=401, detail="Authentication required")
 
+ID_TOKEN_REFRESH_MARGIN_SECONDS = 300   # refresh 5 min before expiry
+ID_TOKEN_FALLBACK_TTL_SECONDS = 300     # if `exp` can't be read, reuse briefly only
+_id_token_cache: dict[str, tuple[str, float]] = {}
+_id_token_lock = threading.Lock()
+
+def _token_expiry(token: str) -> float:
+    """Reads the `exp` claim WITHOUT verifying the signature.
+
+    Safe here: the token came from Google over TLS and is only used to decide when to
+    refresh our own cached credential. The backend (Cloud Run IAM) does the verification.
+    """
+    try:
+        from google.auth import jwt as google_jwt
+        exp = google_jwt.decode(token, verify=False).get("exp")
+        if isinstance(exp, (int, float)):
+            return float(exp)
+    except Exception:
+        pass
+    return time.time() + ID_TOKEN_FALLBACK_TTL_SECONDS + ID_TOKEN_REFRESH_MARGIN_SECONDS
+
 def get_id_token(audience: str = CLOUD_RUN_BACKEND_URL) -> str:
+    """Returns a cached Google ID token for `audience`, fetching a new one only near expiry."""
+    with _id_token_lock:
+        cached = _id_token_cache.get(audience)
+        if cached and time.time() < cached[1] - ID_TOKEN_REFRESH_MARGIN_SECONDS:
+            return cached[0]
+        token = _fetch_id_token(audience)
+        if token:
+            _id_token_cache[audience] = (token, _token_expiry(token))
+        else:
+            _id_token_cache.pop(audience, None)  # never cache a failure
+        return token
+
+def _fetch_id_token(audience: str) -> str:
     # 1. Use official google.oauth2.id_token library
     try:
         import google.auth.transport.requests

@@ -12,6 +12,11 @@ IAP_AUDIENCE="${IAP_AUDIENCE:-/projects/883790454740/global/backendServices/6965
 FRONTEND_SERVICE_ACCOUNT="fde-support-frontend-sa@${PROJECT_ID}.iam.gserviceaccount.com"
 # Testing: principals with run.invoker may call the backend URL directly, acting as themselves.
 ALLOW_DIRECT_CALLERS="${ALLOW_DIRECT_CALLERS:-true}"
+# Database (backend/config.py). In production the app refuses to start without these; it never
+# falls back to SQLite. The password is injected from Secret Manager, never stored in env config.
+CLOUD_SQL_CONNECTION_NAME="${PROJECT_ID}:${REGION}:fde-support-db-instance"
+DB_SECRET_ID="fde-support-db-credentials"
+DB_SECRET_VERSION="${DB_SECRET_VERSION:-latest}"  # pin a number for reproducible rollbacks
 
 echo "============================================================"
 echo " Building & Deploying Backend Service to Cloud Run "
@@ -33,6 +38,7 @@ gcloud builds submit \
     --project="${PROJECT_ID}"
 
 # Step 2: Deploy to Cloud Run with dedicated Service Account
+# --update-* flags merge with the service's existing env vars and secrets (agent URLs, OTel settings).
 echo "Step 2: Deploying to Cloud Run with dedicated identity..."
 gcloud run deploy "${SERVICE_NAME}" \
     --image="${IMAGE_TAG}" \
@@ -40,7 +46,9 @@ gcloud run deploy "${SERVICE_NAME}" \
     --region="${REGION}" \
     --service-account="${SERVICE_ACCOUNT}" \
     --no-allow-unauthenticated \
-    --update-env-vars="IAP_AUDIENCE=${IAP_AUDIENCE},FRONTEND_SERVICE_ACCOUNT=${FRONTEND_SERVICE_ACCOUNT},ALLOW_DIRECT_CALLERS=${ALLOW_DIRECT_CALLERS}" \
+    --set-cloudsql-instances="${CLOUD_SQL_CONNECTION_NAME}" \
+    --update-secrets="DB_PASSWORD=${DB_SECRET_ID}:${DB_SECRET_VERSION}" \
+    --update-env-vars="ENV=production,GCP_PROJECT_ID=${PROJECT_ID},CLOUD_SQL_CONNECTION_NAME=${CLOUD_SQL_CONNECTION_NAME},IAP_AUDIENCE=${IAP_AUDIENCE},FRONTEND_SERVICE_ACCOUNT=${FRONTEND_SERVICE_ACCOUNT},ALLOW_DIRECT_CALLERS=${ALLOW_DIRECT_CALLERS}" \
     --project="${PROJECT_ID}"
 
 echo "=== Backend Deployment Completed Successfully! ==="
