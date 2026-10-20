@@ -28,6 +28,9 @@ if not os.environ.get("DATABASE_URL"):
     _TEST_DB_DIR = tempfile.mkdtemp(prefix="fde-pytest-db-")
     os.environ["DATABASE_URL"] = f"sqlite:///{os.path.join(_TEST_DB_DIR, 'test.db')}"
 
+# Offline tests: never export spans to Cloud Trace (see backend/core/telemetry.py).
+os.environ.setdefault("OTEL_TRACES_EXPORTER", "none")
+
 
 def pytest_unconfigure(config):  # noqa: ARG001 - pytest hook signature
     if _TEST_DB_DIR:

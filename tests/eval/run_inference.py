@@ -56,6 +56,14 @@ REPO_ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
 sys.path.insert(0, HERE)
 sys.path.insert(0, REPO_ROOT)
 
+# No Cloud Trace export from the eval. The backend probe imports backend.services.chat,
+# whose telemetry module would otherwise install a global Cloud Trace exporter that also
+# exports every in-process ADK agent span. In CI that fails with PERMISSION_DENIED
+# 'cloudtrace.traces.patch' (the CI service account has no roles/cloudtrace.agent), and
+# it would mix eval traffic into the project's traces. Latency is measured here, not from
+# spans. Must be set before any backend import.
+os.environ.setdefault("OTEL_TRACES_EXPORTER", "none")
+
 import kpi_metrics as km  # noqa: E402
 from backend_probe import OP_AGENT_REPLY, OP_FALLBACK  # noqa: E402  (stdlib-only at import time)
 
