@@ -24,8 +24,14 @@ from google.api_core import exceptions as gax_exceptions
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import backend.main as main  # noqa: E402
+
+from backend.clients import agent_runtime  # noqa: E402
+
+from backend.clients import gcp_auth  # noqa: E402
+
+from backend.clients import stream_parsing  # noqa: E402
 from agents.faq_assistant import tools  # noqa: E402
-from backend.circuit_breaker import CircuitState  # noqa: E402
+from backend.core.circuit_breaker import CircuitState  # noqa: E402
 from iap_test_utils import iap_headers  # noqa: E402
 
 FAQ_URL = "https://example.test/v1/reasoningEngines/1:streamQuery"
@@ -89,35 +95,35 @@ class TestDetectSearchToolFailure(unittest.TestCase):
 
     def test_rate_limited_is_429(self):
         raw = agent_stream(search_tool_output(gax_exceptions.ResourceExhausted("quota")))
-        self.assertEqual(main.detect_search_tool_failure(raw), (429, "rate_limited"))
+        self.assertEqual(stream_parsing.detect_search_tool_failure(raw), (429, "rate_limited"))
 
     def test_search_unavailable_is_503(self):
         raw = agent_stream(search_tool_output(gax_exceptions.ServiceUnavailable("down")))
-        self.assertEqual(main.detect_search_tool_failure(raw), (503, "search_unavailable"))
+        self.assertEqual(stream_parsing.detect_search_tool_failure(raw), (503, "search_unavailable"))
 
     def test_config_errors_do_not_count(self):
         # Won't recover on their own; the agent's own escalate=true answer handles them.
         for exc in (gax_exceptions.Unauthenticated("x"), gax_exceptions.PermissionDenied("x")):
             raw = agent_stream(search_tool_output(exc))
-            self.assertIsNone(main.detect_search_tool_failure(raw), type(exc).__name__)
+            self.assertIsNone(stream_parsing.detect_search_tool_failure(raw), type(exc).__name__)
 
     def test_healthy_search_is_not_a_failure(self):
-        self.assertIsNone(main.detect_search_tool_failure(agent_stream(search_tool_output(results=[]))))
+        self.assertIsNone(stream_parsing.detect_search_tool_failure(agent_stream(search_tool_output(results=[]))))
 
     def test_later_successful_search_clears_failure(self):
         raw = agent_stream({"status": "error", "error_type": "rate_limited", "results": []},
                            {"status": "no_results", "query": "q", "results": []})
-        self.assertIsNone(main.detect_search_tool_failure(raw))
+        self.assertIsNone(stream_parsing.detect_search_tool_failure(raw))
 
     def test_429_wins_over_503(self):
         raw = agent_stream({"status": "error", "error_type": "search_unavailable", "results": []},
                            {"status": "error", "error_type": "rate_limited", "results": []})
-        self.assertEqual(main.detect_search_tool_failure(raw), (429, "rate_limited"))
+        self.assertEqual(stream_parsing.detect_search_tool_failure(raw), (429, "rate_limited"))
 
     def test_no_tool_call_and_garbage_lines(self):
-        self.assertIsNone(main.detect_search_tool_failure(""))
-        self.assertIsNone(main.detect_search_tool_failure("not json\n[1, 2]\n{\"content\": \"x\"}"))
-        self.assertIsNone(main.detect_search_tool_failure(json.dumps(
+        self.assertIsNone(stream_parsing.detect_search_tool_failure(""))
+        self.assertIsNone(stream_parsing.detect_search_tool_failure("not json\n[1, 2]\n{\"content\": \"x\"}"))
+        self.assertIsNone(stream_parsing.detect_search_tool_failure(json.dumps(
             {"content": {"parts": [{"function_response": {"name": "get_order_status",
                                                           "response": {"status": "error"}}}]}})))
 
@@ -125,15 +131,15 @@ class TestDetectSearchToolFailure(unittest.TestCase):
 class _FaqAgentTestBase(unittest.TestCase):
 
     def setUp(self):
-        main.rag_circuit_breaker.record_success()
-        main.rag_circuit_breaker.recovery_timeout_seconds = 30.0
+        agent_runtime.rag_circuit_breaker.record_success()
+        agent_runtime.rag_circuit_breaker.recovery_timeout_seconds = 30.0
         _FaqAgentClient.posts = []
         _FaqAgentClient.response = _FakeResp()
         self.patches = [
-            patch.object(main.httpx, "AsyncClient", _FaqAgentClient),
-            patch.object(main, "get_gcp_auth_headers", lambda: {}),
-            patch.object(main, "FAQ_AGENT_URL", FAQ_URL),
-            patch.object(main, "call_sentiment_agent", AsyncMock(return_value=NEUTRAL)),
+            patch.object(agent_runtime.httpx, "AsyncClient", _FaqAgentClient),
+            patch.object(gcp_auth, "get_gcp_auth_headers", lambda: {}),
+            patch.object(agent_runtime, "FAQ_AGENT_URL", FAQ_URL),
+            patch.object(agent_runtime, "call_sentiment_agent", AsyncMock(return_value=NEUTRAL)),
         ]
         for p in self.patches:
             p.start()
@@ -142,7 +148,7 @@ class _FaqAgentTestBase(unittest.TestCase):
     def tearDown(self):
         for p in self.patches:
             p.stop()
-        main.rag_circuit_breaker.record_success()
+        agent_runtime.rag_circuit_breaker.record_success()
 
 
 class TestCallFaqAgentSurfacesSearchFailure(_FaqAgentTestBase):
@@ -150,8 +156,8 @@ class TestCallFaqAgentSurfacesSearchFailure(_FaqAgentTestBase):
     def test_raises_429_on_search_rate_limit(self):
         _FaqAgentClient.response = _FakeResp(200, agent_stream(
             search_tool_output(gax_exceptions.ResourceExhausted("quota"))))
-        with self.assertRaises(main.UpstreamDependencyError) as ctx:
-            asyncio.run(main.call_faq_agent("return policy?", "3f0c2b1e-0000-4000-8000-000000000001", "u_abc"))
+        with self.assertRaises(agent_runtime.UpstreamDependencyError) as ctx:
+            asyncio.run(agent_runtime.call_faq_agent("return policy?", "3f0c2b1e-0000-4000-8000-000000000001", "u_abc"))
         self.assertEqual(ctx.exception.status_code, 429)
         self.assertEqual(ctx.exception.reason, "rate_limited")
 
@@ -160,7 +166,7 @@ class TestCallFaqAgentSurfacesSearchFailure(_FaqAgentTestBase):
                   "grounded": True, "escalate": False}
         _FaqAgentClient.response = _FakeResp(200, agent_stream(
             {"status": "success", "query": "q", "results": [{"doc_id": "twcs_1"}]}, answer=answer))
-        data = asyncio.run(main.call_faq_agent("return policy?", "3f0c2b1e-0000-4000-8000-000000000002", "u_abc"))
+        data = asyncio.run(agent_runtime.call_faq_agent("return policy?", "3f0c2b1e-0000-4000-8000-000000000002", "u_abc"))
         self.assertTrue(data["grounded"])
         self.assertIn("14 days", data["answer"])
 
@@ -175,7 +181,7 @@ class TestCircuitBreakerBehaviorAgentSearch429(_FaqAgentTestBase):
         # Queries 1-3: each reaches the FAQ agent once (no retry on 429) and falls back.
         with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
             for i in range(1, 4):
-                self.assertEqual(main.rag_circuit_breaker.current_state, CircuitState.CLOSED, f"before query {i}")
+                self.assertEqual(agent_runtime.rag_circuit_breaker.current_state, CircuitState.CLOSED, f"before query {i}")
                 resp = self.client.post("/api/chat", json={"message": f"Query {i}: what is your return policy?"})
                 self.assertEqual(resp.status_code, 200)
                 data = resp.json()
@@ -184,7 +190,7 @@ class TestCircuitBreakerBehaviorAgentSearch429(_FaqAgentTestBase):
                 self.assertIn("experiencing high volume", data["answer"])
                 self.assertEqual(len(_FaqAgentClient.posts), i, "a 429 must not be retried")
         mock_sleep.assert_not_called()
-        self.assertEqual(main.rag_circuit_breaker.state, CircuitState.OPEN)
+        self.assertEqual(agent_runtime.rag_circuit_breaker.state, CircuitState.OPEN)
 
         # Query 4: breaker OPEN, so RAG is bypassed entirely and the human queue gets it.
         resp = self.client.post("/api/chat", json={"message": "Query 4: do you ship to Germany?"})
@@ -203,20 +209,20 @@ class TestCircuitBreakerBehaviorAgentSearch429(_FaqAgentTestBase):
             resp = self.client.post("/api/chat", json={"message": f"Return policy for AirPods? ({i})"})
             self.assertEqual(resp.status_code, 200)
             self.assertNotIn("Circuit Breaker", resp.json()["routed_to"])
-        self.assertEqual(main.rag_circuit_breaker.state, CircuitState.CLOSED)
-        self.assertEqual(main.rag_circuit_breaker.failure_count, 0)
+        self.assertEqual(agent_runtime.rag_circuit_breaker.state, CircuitState.CLOSED)
+        self.assertEqual(agent_runtime.rag_circuit_breaker.failure_count, 0)
 
     def test_half_open_probe_rate_limited_reopens(self):
         for _ in range(3):
-            main.rag_circuit_breaker.record_failure(429)
-        main.rag_circuit_breaker.recovery_timeout_seconds = 0.0  # cooldown elapsed -> HALF_OPEN
+            agent_runtime.rag_circuit_breaker.record_failure(429)
+        agent_runtime.rag_circuit_breaker.recovery_timeout_seconds = 0.0  # cooldown elapsed -> HALF_OPEN
         _FaqAgentClient.response = _FakeResp(200, agent_stream(
             search_tool_output(gax_exceptions.ResourceExhausted("Quota exceeded"))))
 
         resp = self.client.post("/api/chat", json={"message": "What is your return policy?"})
         self.assertEqual(resp.json()["routed_to"], OUTAGE_FALLBACK_ROUTE)
         self.assertEqual(len(_FaqAgentClient.posts), 1, "HALF_OPEN sends exactly one probe")
-        self.assertEqual(main.rag_circuit_breaker.state, CircuitState.OPEN)
+        self.assertEqual(agent_runtime.rag_circuit_breaker.state, CircuitState.OPEN)
 
 
 if __name__ == "__main__":

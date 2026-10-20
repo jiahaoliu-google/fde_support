@@ -17,8 +17,8 @@ from sqlalchemy.engine import make_url
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, ROOT)
 
-from backend import config  # noqa: E402
-from backend.config import DatabaseConfigError, Settings  # noqa: E402
+from backend.core import config  # noqa: E402
+from backend.core.config import DatabaseConfigError, Settings  # noqa: E402
 
 CONN = "proj:us-central1:inst"
 
@@ -123,7 +123,7 @@ class TestDevelopmentDatabaseUrl(unittest.TestCase):
 
     def test_sqlite_fallback_is_logged_not_silent(self):
         with patch.object(config, "fetch_db_password_from_secret_manager", return_value=""), \
-                self.assertLogs("backend.config", level=logging.WARNING) as logs:
+                self.assertLogs("backend.core.config", level=logging.WARNING) as logs:
             url = make_settings().get_database_url()
         self.assertTrue(url.startswith("sqlite:///"))
         self.assertIn("development only", "\n".join(logs.output))

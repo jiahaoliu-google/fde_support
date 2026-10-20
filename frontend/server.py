@@ -199,7 +199,7 @@ async def proxy_to_cloud_run(path: str, request: Request):
     
     # Build upstream headers from scratch: browser/IAP headers (including any client-supplied
     # X-User-Email) are never forwarded. The backend verifies the forwarded IAP assertion
-    # itself and takes the user's email from it (backend/caller_identity.py).
+    # itself and takes the user's email from it (backend/security/caller_identity.py).
     forward_headers = {
         "Accept": request.headers.get("accept", "application/json"),
     }

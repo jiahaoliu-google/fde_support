@@ -19,8 +19,11 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 sys.path.insert(0, os.path.dirname(__file__))
 
-import backend.main as main  # noqa: E402
-from backend.main import app as backend_app, rag_circuit_breaker  # noqa: E402
+from backend.clients import agent_runtime  # noqa: E402
+
+from backend.clients import gcp_auth  # noqa: E402
+from backend.main import app as backend_app  # noqa: E402
+from backend.clients.agent_runtime import rag_circuit_breaker  # noqa: E402
 from iap_test_utils import iap_headers  # noqa: E402
 
 ALICE = "alice@example.com"
@@ -63,9 +66,9 @@ class _Client:
 class TestSentimentParsing(unittest.TestCase):
     def setUp(self):
         self.patches = [
-            patch.object(main.httpx, "AsyncClient", _Client),
-            patch.object(main, "get_gcp_auth_headers", lambda: {}),
-            patch.object(main, "SENTIMENT_AGENT_URL", "https://example.test/x:streamQuery"),
+            patch.object(agent_runtime.httpx, "AsyncClient", _Client),
+            patch.object(gcp_auth, "get_gcp_auth_headers", lambda: {}),
+            patch.object(agent_runtime, "SENTIMENT_AGENT_URL", "https://example.test/x:streamQuery"),
         ]
         for p in self.patches:
             p.start()
@@ -76,7 +79,7 @@ class TestSentimentParsing(unittest.TestCase):
 
     def _call(self, model_text):
         _Client.response = _Resp(200, agent_stream(model_text))
-        return run(main.call_sentiment_agent("msg"))
+        return run(agent_runtime.call_sentiment_agent("msg"))
 
     def test_valid_labels_returned(self):
         for label in ("URGENT_FRUSTRATED", "NEUTRAL_FACTUAL"):
@@ -88,12 +91,12 @@ class TestSentimentParsing(unittest.TestCase):
 
     def test_unparseable_output_raises_instead_of_neutral(self):
         for bad in ("I think this customer is upset", "", "{not json"):
-            with self.assertRaises(main.SentimentClassificationError, msg=bad):
+            with self.assertRaises(agent_runtime.SentimentClassificationError, msg=bad):
                 self._call(bad)
 
     def test_unknown_or_missing_label_raises(self):
         for bad in ('{"sentiment": "ANGRY"}', '{"sentiment": "urgent_frustrated"}', "{}", "[]", '"NEUTRAL_FACTUAL"'):
-            with self.assertRaises(main.SentimentClassificationError, msg=bad):
+            with self.assertRaises(agent_runtime.SentimentClassificationError, msg=bad):
                 self._call(bad)
 
 
@@ -104,7 +107,7 @@ class TestSentimentFailClosed(unittest.TestCase):
     def setUp(self):
         rag_circuit_breaker.record_success()
         self.alice = TestClient(backend_app, headers=iap_headers(ALICE))
-        self.faq = patch.object(main, "call_faq_agent")
+        self.faq = patch.object(agent_runtime, "call_faq_agent")
         self.mock_faq = self.faq.start()
 
     def tearDown(self):
@@ -112,11 +115,11 @@ class TestSentimentFailClosed(unittest.TestCase):
         rag_circuit_breaker.record_success()
 
     def _chat(self, side_effect):
-        with patch.object(main, "call_sentiment_agent", side_effect=side_effect):
+        with patch.object(agent_runtime, "call_sentiment_agent", side_effect=side_effect):
             return self.alice.post("/api/chat", json={"message": "Where is my order?"})
 
     def test_bad_classification_escalates_without_tripping_breaker(self):
-        resp = self._chat(main.SentimentClassificationError("garbage"))
+        resp = self._chat(agent_runtime.SentimentClassificationError("garbage"))
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
         self.assertEqual(data["ticket_status"], "ESCALATED")
@@ -152,7 +155,7 @@ class TestSentimentAgentSchema(unittest.TestCase):
     def test_schema_labels_match_backend(self):
         from typing import get_args
         labels = set(get_args(self.mod.SentimentResult.model_fields["sentiment"].annotation))
-        self.assertEqual(labels, set(main.SENTIMENT_LABELS))
+        self.assertEqual(labels, set(agent_runtime.SENTIMENT_LABELS))
 
     def test_schema_rejects_unknown_label(self):
         from pydantic import ValidationError
@@ -166,7 +169,7 @@ class TestSentimentAgentSchema(unittest.TestCase):
 # ---------------------------------------------------------------------------
 class TestBackendCredentialCache(unittest.TestCase):
     def setUp(self):
-        main._gcp_credentials = None
+        gcp_auth._gcp_credentials = None
         self.creds = MagicMock()
         self.creds.valid = False
         self.creds.token = "tok-1"
@@ -180,22 +183,22 @@ class TestBackendCredentialCache(unittest.TestCase):
 
     def tearDown(self):
         self.default.stop()
-        main._gcp_credentials = None
+        gcp_auth._gcp_credentials = None
 
     def test_loads_once_and_refreshes_only_when_invalid(self):
         for _ in range(5):
-            self.assertEqual(main.get_gcp_auth_headers(), {"Authorization": "Bearer tok-1"})
+            self.assertEqual(gcp_auth.get_gcp_auth_headers(), {"Authorization": "Bearer tok-1"})
         self.mock_default.assert_called_once()
         self.creds.refresh.assert_called_once()
 
         self.creds.valid = False  # expired / inside google-auth's refresh margin
-        main.get_gcp_auth_headers()
+        gcp_auth.get_gcp_auth_headers()
         self.assertEqual(self.creds.refresh.call_count, 2)
         self.mock_default.assert_called_once()
 
     def test_failure_returns_empty_headers(self):
         self.creds.refresh.side_effect = RuntimeError("metadata down")
-        self.assertEqual(main.get_gcp_auth_headers(), {})
+        self.assertEqual(gcp_auth.get_gcp_auth_headers(), {})
 
 
 # ---------------------------------------------------------------------------

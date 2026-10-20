@@ -14,9 +14,11 @@ from google.auth import jwt as google_jwt
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from backend.main import app as backend_app, rag_circuit_breaker  # noqa: E402
+from backend.main import app as backend_app  # noqa: E402
+
+from backend.clients.agent_runtime import rag_circuit_breaker  # noqa: E402
 from iap_test_utils import iap_headers  # noqa: E402
-from frontend.iap_auth import IapAuthError, IapVerifier, IAP_ISSUER  # noqa: E402
+from common.iap_auth import IapAuthError, IapVerifier, IAP_ISSUER  # noqa: E402
 
 ALICE = "alice@example.com"
 BOB = "bob@example.com"
@@ -73,8 +75,8 @@ class TestTicketOwnership(unittest.TestCase):
         self.assertEqual(self.alice.post("/api/tickets/does-not-exist/resolve").status_code, 404)
         self.assertEqual(self.alice.get("/api/tickets/does-not-exist").status_code, 404)
 
-    @patch("backend.main.call_faq_agent")
-    @patch("backend.main.call_sentiment_agent")
+    @patch("backend.clients.agent_runtime.call_faq_agent")
+    @patch("backend.clients.agent_runtime.call_sentiment_agent")
     def test_other_user_cannot_chat_on_ticket(self, mock_sentiment, mock_faq):
         mock_sentiment.return_value = NEUTRAL
         mock_faq.return_value = FAQ_OK
@@ -84,8 +86,8 @@ class TestTicketOwnership(unittest.TestCase):
         mock_sentiment.assert_not_called()
         mock_faq.assert_not_called()
 
-    @patch("backend.main.call_faq_agent")
-    @patch("backend.main.call_sentiment_agent")
+    @patch("backend.clients.agent_runtime.call_faq_agent")
+    @patch("backend.clients.agent_runtime.call_sentiment_agent")
     def test_body_customer_id_is_ignored(self, mock_sentiment, mock_faq):
         mock_sentiment.return_value = NEUTRAL
         mock_faq.return_value = FAQ_OK
@@ -95,8 +97,8 @@ class TestTicketOwnership(unittest.TestCase):
         self.assertEqual(self.bob.get(f"/api/tickets/{new_id}").json()["ticket"]["customer_id"], BOB)
         self.assertEqual(self.alice.get(f"/api/tickets/{new_id}").status_code, 404)
 
-    @patch("backend.main.call_faq_agent")
-    @patch("backend.main.call_sentiment_agent")
+    @patch("backend.clients.agent_runtime.call_faq_agent")
+    @patch("backend.clients.agent_runtime.call_sentiment_agent")
     def test_agent_sessions_are_scoped_per_user(self, mock_sentiment, mock_faq):
         mock_sentiment.return_value = NEUTRAL
         mock_faq.return_value = FAQ_OK
@@ -205,7 +207,7 @@ class _FrontendProxyFixture(unittest.TestCase):
 
     def setUp(self):
         import frontend.server as server
-        from frontend.iap_auth import IapIdentity
+        from common.iap_auth import IapIdentity
 
         self.server = server
         self.captured = {}

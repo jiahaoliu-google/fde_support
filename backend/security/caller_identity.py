@@ -46,7 +46,7 @@ from common.iap_auth import (
     IapVerifier,
 )
 
-logger = logging.getLogger("backend.caller_identity")
+logger = logging.getLogger(__name__)
 
 CLOUD_RUN_SIGNATURE_REMOVED = "SIGNATURE_REMOVED_BY_GOOGLE"
 GOOGLE_ID_TOKEN_ISSUERS = frozenset({"https://accounts.google.com", "accounts.google.com"})

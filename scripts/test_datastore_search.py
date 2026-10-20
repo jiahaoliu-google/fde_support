@@ -1,5 +1,4 @@
 import os
-import json
 import certifi
 import google.auth
 import google.auth.transport.requests

@@ -14,7 +14,7 @@ from google.auth import crypt
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import backend.main as main  # noqa: E402
-from backend.caller_identity import (  # noqa: E402
+from backend.security.caller_identity import (  # noqa: E402
     CallerAuthError, CallerResolver, build_caller_resolver, invoker_email,
 )
 from iap_test_utils import (  # noqa: E402

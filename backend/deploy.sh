@@ -7,12 +7,12 @@ SERVICE_NAME="fde-support-backend"
 REPO_NAME="fde-support-repo"
 IMAGE_TAG="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/backend:latest"
 SERVICE_ACCOUNT="fde-support-backend-sa@${PROJECT_ID}.iam.gserviceaccount.com"
-# Caller identity (backend/caller_identity.py). Same IAP audience as frontend/deploy.sh.
+# Caller identity (backend/security/caller_identity.py). Same IAP audience as frontend/deploy.sh.
 IAP_AUDIENCE="${IAP_AUDIENCE:-/projects/883790454740/global/backendServices/6965840051173915797}"
 FRONTEND_SERVICE_ACCOUNT="fde-support-frontend-sa@${PROJECT_ID}.iam.gserviceaccount.com"
 # Testing: principals with run.invoker may call the backend URL directly, acting as themselves.
 ALLOW_DIRECT_CALLERS="${ALLOW_DIRECT_CALLERS:-true}"
-# Database (backend/config.py). In production the app refuses to start without these; it never
+# Database (backend/core/config.py). In production the app refuses to start without these; it never
 # falls back to SQLite. The password is injected from Secret Manager, never stored in env config.
 CLOUD_SQL_CONNECTION_NAME="${PROJECT_ID}:${REGION}:fde-support-db-instance"
 DB_SECRET_ID="fde-support-db-credentials"
@@ -34,7 +34,7 @@ gcloud builds submit \
     --region="${REGION}" \
     --gcs-source-staging-dir="gs://run-sources-${PROJECT_ID}-${REGION}/source" \
     --gcs-log-dir="gs://run-sources-${PROJECT_ID}-${REGION}/logs" \
-    --config=backend/cloudbuild.yaml . \
+    --config=cloudbuild-backend.yaml . \
     --project="${PROJECT_ID}"
 
 # Step 2: Deploy to Cloud Run with dedicated Service Account

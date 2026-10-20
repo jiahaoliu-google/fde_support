@@ -25,12 +25,17 @@ except ImportError:
         sys.modules.setdefault(_name, _types.ModuleType(_name))
     sys.modules["vertexai.agent_engines.templates.adk"].AdkApp = object
 
-import backend.main as main  # noqa: E402
-from backend.main import app as backend_app, rag_circuit_breaker  # noqa: E402
+from backend.clients import agent_runtime  # noqa: E402
+
+from backend.api import deps  # noqa: E402
+
+from backend.clients import gcp_auth  # noqa: E402
+from backend.main import app as backend_app  # noqa: E402
+from backend.clients.agent_runtime import rag_circuit_breaker  # noqa: E402
 from iap_test_utils import iap_headers  # noqa: E402
 
 # Keep a reference to the real function; setUp() stubs the module attribute for endpoint tests.
-REAL_DELETE_FAQ_SESSION = main.delete_faq_session
+REAL_DELETE_FAQ_SESSION = agent_runtime.delete_faq_session
 
 VERTEX_ID_RE = re.compile(r"^[a-z][a-z0-9-]{0,61}[a-z0-9]$")
 ALICE = "alice@example.com"
@@ -313,9 +318,9 @@ class TestBackendAgentSessions(unittest.TestCase):
         _RecordingClient.response = _FakeResp()
         _RecordingClient.error = None
         self.patches = [
-            patch.object(main.httpx, "AsyncClient", _RecordingClient),
-            patch.object(main, "get_gcp_auth_headers", lambda: {}),
-            patch.object(main, "delete_faq_session", AsyncMock(return_value=True)),
+            patch.object(agent_runtime.httpx, "AsyncClient", _RecordingClient),
+            patch.object(gcp_auth, "get_gcp_auth_headers", lambda: {}),
+            patch.object(agent_runtime, "delete_faq_session", AsyncMock(return_value=True)),
         ]
         for p in self.patches:
             p.start()
@@ -328,33 +333,33 @@ class TestBackendAgentSessions(unittest.TestCase):
     def test_agent_session_id_is_valid_for_vertex(self):
         for _ in range(1000):
             ticket = str(uuid.uuid4())
-            sid = main.agent_session_id(ticket)
+            sid = agent_runtime.agent_session_id(ticket)
             self.assertRegex(sid, VERTEX_ID_RE)
-            self.assertEqual(sid, main.agent_session_id(ticket))  # deterministic
+            self.assertEqual(sid, agent_runtime.agent_session_id(ticket))  # deterministic
 
     def test_agent_session_id_rejects_garbage(self):
         from fastapi import HTTPException
         for bad in ("../x", "a" * 80, "UPPER_case", ""):
             with self.assertRaises(HTTPException):
-                main.agent_session_id(bad)
+                agent_runtime.agent_session_id(bad)
 
     def test_faq_payload_uses_mapped_session_id(self):
         ticket = str(uuid.uuid4())
         _RecordingClient.response = _FakeResp(200, json.dumps({"content": {"parts": [{"text": "hi"}]}}))
-        run(main.call_faq_agent("hello", ticket, "u_abc"))
+        run(agent_runtime.call_faq_agent("hello", ticket, "u_abc"))
         self.assertEqual(_RecordingClient.posts[0]["json"]["input"]["session_id"], f"t-{ticket}")
 
     def test_faq_soft_fallbacks_escalate(self):
         # Both fallbacks tell the customer the question was routed to a human.
         for resp in (_FakeResp(200, ""), _FakeResp(500, "Model returned no actionable content")):
             _RecordingClient.response = resp
-            data = run(main.call_faq_agent("hello", str(uuid.uuid4()), "u_abc"))
+            data = run(agent_runtime.call_faq_agent("hello", str(uuid.uuid4()), "u_abc"))
             self.assertTrue(data["escalate"])
             self.assertFalse(data["grounded"])
 
     def test_sentiment_session_id_is_vertex_safe(self):
         _RecordingClient.response = _FakeResp(200, json.dumps({"content": {"parts": [{"text": '{"sentiment": "NEUTRAL_FACTUAL"}'}]}}))
-        run(main.call_sentiment_agent("hello"))
+        run(agent_runtime.call_sentiment_agent("hello"))
         self.assertRegex(_RecordingClient.posts[0]["json"]["input"]["session_id"], VERTEX_ID_RE)
 
     def test_delete_faq_session_payload(self):
@@ -378,11 +383,11 @@ class TestBackendAgentSessions(unittest.TestCase):
         ticket = self.alice.post("/api/tickets/create", json={}).json()["ticket_id"]
         resp = self.alice.post(f"/api/tickets/{ticket}/resolve")
         self.assertEqual(resp.status_code, 200)
-        main.delete_faq_session.assert_awaited_once_with(ticket, main.agent_user_id(ALICE))
+        agent_runtime.delete_faq_session.assert_awaited_once_with(ticket, deps.agent_user_id(ALICE))
 
     def test_resolve_succeeds_when_cleanup_fails(self):
-        main.delete_faq_session.side_effect = None
-        main.delete_faq_session.return_value = False
+        agent_runtime.delete_faq_session.side_effect = None
+        agent_runtime.delete_faq_session.return_value = False
         ticket = self.alice.post("/api/tickets/create", json={}).json()["ticket_id"]
         resp = self.alice.post(f"/api/tickets/{ticket}/resolve")
         self.assertEqual(resp.status_code, 200)
@@ -392,7 +397,7 @@ class TestBackendAgentSessions(unittest.TestCase):
         ticket = self.alice.post("/api/tickets/create", json={}).json()["ticket_id"]
         bob = TestClient(backend_app, headers=iap_headers("bob@example.com"))
         self.assertEqual(bob.post(f"/api/tickets/{ticket}/resolve").status_code, 404)
-        main.delete_faq_session.assert_not_awaited()
+        agent_runtime.delete_faq_session.assert_not_awaited()
 
 
 if __name__ == "__main__":

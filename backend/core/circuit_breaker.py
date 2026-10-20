@@ -89,9 +89,6 @@ class CircuitBreaker:
                     return CircuitState.HALF_OPEN
             return None
 
-    def allow_request(self) -> bool:
-        return self.try_acquire() is not None
-
     def release_probe(self):
         """Frees the probe slot if the probe ended without a countable outcome (e.g. a 4xx)."""
         with self._lock:

@@ -19,6 +19,12 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from fastapi.testclient import TestClient  # noqa: E402
 
 import backend.main as m  # noqa: E402
+
+from backend.clients import agent_runtime  # noqa: E402
+
+from backend.api import deps  # noqa: E402
+
+from backend.db import models  # noqa: E402
 from db_test_utils import TempDatabase, fail_sql, statements_like  # noqa: E402
 
 USER = "persistence-user@example.com"
@@ -30,11 +36,11 @@ class _AppWithTempDatabase(unittest.TestCase):
     def setUp(self):
         self.db = TempDatabase()
         self.db.install(m.app)
-        m.app.dependency_overrides[m.get_caller] = lambda: USER
-        m.rag_circuit_breaker.record_success()
+        m.app.dependency_overrides[deps.get_caller] = lambda: USER
+        agent_runtime.rag_circuit_breaker.record_success()
         # A server-side exception becomes a 500 response, as it would in production.
         self.client = TestClient(m.app, raise_server_exceptions=False)
-        self.sentiment = m.SENTIMENT_NEUTRAL
+        self.sentiment = agent_runtime.SENTIMENT_NEUTRAL
         self.faq_escalate = False
         self.faq_calls = 0
 
@@ -48,12 +54,12 @@ class _AppWithTempDatabase(unittest.TestCase):
         async def delete(*a, **k):
             return True
 
-        self.saved = (m.call_sentiment_agent, m.call_faq_agent, m.delete_faq_session)
-        m.call_sentiment_agent, m.call_faq_agent, m.delete_faq_session = sentiment, faq, delete
+        self.saved = (agent_runtime.call_sentiment_agent, agent_runtime.call_faq_agent, agent_runtime.delete_faq_session)
+        agent_runtime.call_sentiment_agent, agent_runtime.call_faq_agent, agent_runtime.delete_faq_session = sentiment, faq, delete
 
     def tearDown(self):
-        m.call_sentiment_agent, m.call_faq_agent, m.delete_faq_session = self.saved
-        m.app.dependency_overrides.pop(m.get_caller, None)
+        agent_runtime.call_sentiment_agent, agent_runtime.call_faq_agent, agent_runtime.delete_faq_session = self.saved
+        m.app.dependency_overrides.pop(deps.get_caller, None)
         self.db.uninstall(m.app)
 
     def new_ticket(self):
@@ -76,7 +82,7 @@ class TestTicketPersistence(_AppWithTempDatabase):
         tid = self.new_ticket()
         self.assertEqual(self.db.state(tid), ("NEW", []))
         with self.db.Session() as s:
-            ticket = s.get(m.Ticket, tid)
+            ticket = s.get(models.Ticket, tid)
             self.assertEqual(ticket.customer_id, USER)
             self.assertEqual(ticket.sentiment, "NEUTRAL_FACTUAL")
 
@@ -86,8 +92,8 @@ class TestTicketPersistence(_AppWithTempDatabase):
         tid = r.json()["ticket_id"]
         self.assertEqual(self.db.state(tid), ("IN_PROGRESS", ["AGENT", "CUSTOMER"]))
         with self.db.Session() as s:
-            ticket = s.get(m.Ticket, tid)
-            self.assertEqual((ticket.customer_id, ticket.sentiment), (USER, m.SENTIMENT_NEUTRAL))
+            ticket = s.get(models.Ticket, tid)
+            self.assertEqual((ticket.customer_id, ticket.sentiment), (USER, agent_runtime.SENTIMENT_NEUTRAL))
 
     def test_existing_ticket_moves_from_new_to_in_progress(self):
         tid = self.new_ticket()
@@ -95,7 +101,7 @@ class TestTicketPersistence(_AppWithTempDatabase):
         self.assertEqual(self.db.state(tid), ("IN_PROGRESS", ["AGENT", "CUSTOMER"]))
 
     def test_urgent_turn_persists_escalation_with_system_ack(self):
-        self.sentiment = m.SENTIMENT_URGENT
+        self.sentiment = agent_runtime.SENTIMENT_URGENT
         r = self.chat("this is unacceptable, refund me now")
         self.assertEqual(r.status_code, 200, r.text)
         tid = r.json()["ticket_id"]
@@ -108,9 +114,9 @@ class TestTicketPersistence(_AppWithTempDatabase):
         self.assertEqual(self.db.state(tid), ("RESOLVED", ["SYSTEM"]))
 
     def test_escalated_follow_up_is_stored_without_agent_calls(self):
-        self.sentiment = m.SENTIMENT_URGENT
+        self.sentiment = agent_runtime.SENTIMENT_URGENT
         tid = self.chat("angry").json()["ticket_id"]
-        self.sentiment = m.SENTIMENT_NEUTRAL
+        self.sentiment = agent_runtime.SENTIMENT_NEUTRAL
         r = self.chat("any update?", ticket_id=tid)
         self.assertEqual(r.status_code, 200, r.text)
         self.assertEqual(self.db.state(tid), ("ESCALATED", ["CUSTOMER", "CUSTOMER", "SYSTEM"]))
@@ -134,7 +140,7 @@ class TestRollbackOnWriteFailure(_AppWithTempDatabase):
         self.assertEqual(self.db.counts(), (0, 0))  # no ticket without its message
 
     def test_urgent_turn_write_fails_no_partial_escalation(self):
-        self.sentiment = m.SENTIMENT_URGENT
+        self.sentiment = agent_runtime.SENTIMENT_URGENT
         with fail_sql(self.db.engine, "INSERT INTO messages") as probe:
             r = self.chat("refund me now")
         self.assert_failed_cleanly(r, probe)
@@ -160,14 +166,14 @@ class TestRollbackOnWriteFailure(_AppWithTempDatabase):
 
     def test_outage_fallback_write_fails_escalation_undone(self):
         tid = self.new_ticket()
-        with mock.patch.object(m.rag_circuit_breaker, "try_acquire", return_value=None), \
+        with mock.patch.object(agent_runtime.rag_circuit_breaker, "try_acquire", return_value=None), \
                 fail_sql(self.db.engine, "INSERT INTO messages", nth=2) as probe:  # 2 = SYSTEM fallback
             r = self.chat(ticket_id=tid)
         self.assert_failed_cleanly(r, probe)
         self.assertEqual(self.db.state(tid), ("IN_PROGRESS", ["CUSTOMER"]))
 
     def test_escalated_follow_up_write_fails_nothing_appended(self):
-        self.sentiment = m.SENTIMENT_URGENT
+        self.sentiment = agent_runtime.SENTIMENT_URGENT
         tid = self.chat("angry").json()["ticket_id"]
         with fail_sql(self.db.engine, "INSERT INTO messages") as probe:
             r = self.chat("any update?", ticket_id=tid)

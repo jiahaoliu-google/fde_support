@@ -16,6 +16,7 @@ from google.auth import exceptions as auth_exceptions
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, ROOT)
 
+import no_network  # noqa: F401,E402  (blocks outbound network)
 from agents.faq_assistant import tools  # noqa: E402
 from agents.faq_assistant.mock_orders import (  # noqa: E402
     MOCK_ORDERS,
@@ -23,8 +24,8 @@ from agents.faq_assistant.mock_orders import (  # noqa: E402
     lookup_order,
     normalize_order_id,
 )
-from backend.main import parse_ndjson_stream  # noqa: E402
-from backend.model_armor import model_armor  # noqa: E402
+from backend.clients.stream_parsing import parse_ndjson_stream  # noqa: E402
+from backend.security.model_armor import model_armor  # noqa: E402
 
 
 class TestMockOrders(unittest.TestCase):

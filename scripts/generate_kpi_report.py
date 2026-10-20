@@ -25,7 +25,7 @@ import os
 import re
 import sys
 from datetime import datetime
-from typing import Any, Optional
+from typing import Optional
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, REPO_ROOT)
