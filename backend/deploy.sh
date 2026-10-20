@@ -1,56 +1,53 @@
 #!/usr/bin/env bash
+# Build the backend image and roll it out. IMAGE ONLY: env vars, secrets, IAM, VPC and
+# scaling are owned by Terraform (deployment/terraform/cloud_run.tf), which keeps whatever
+# image is live (hybrid mode), so this script and `terraform apply` never fight.
+#
+#   ./backend/deploy.sh               build + roll the new image (code changes)
+#   ./backend/deploy.sh --build-only  build only; prints the digest for
+#                                     `terraform apply -var backend_image=<digest>`
 set -euo pipefail
 
 PROJECT_ID="fde-support-sandbox-dev-jliu"
 REGION="us-central1"
 SERVICE_NAME="fde-support-backend"
-REPO_NAME="fde-support-repo"
-IMAGE_TAG="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/backend:latest"
-SERVICE_ACCOUNT="fde-support-backend-sa@${PROJECT_ID}.iam.gserviceaccount.com"
-# Caller identity (backend/security/caller_identity.py). Same IAP audience as frontend/deploy.sh.
-IAP_AUDIENCE="${IAP_AUDIENCE:-/projects/883790454740/global/backendServices/6965840051173915797}"
-FRONTEND_SERVICE_ACCOUNT="fde-support-frontend-sa@${PROJECT_ID}.iam.gserviceaccount.com"
-# Testing: principals with run.invoker may call the backend URL directly, acting as themselves.
-ALLOW_DIRECT_CALLERS="${ALLOW_DIRECT_CALLERS:-true}"
-# Database (backend/core/config.py). In production the app refuses to start without these; it never
-# falls back to SQLite. The password is injected from Secret Manager, never stored in env config.
-CLOUD_SQL_CONNECTION_NAME="${PROJECT_ID}:${REGION}:fde-support-db-instance"
-DB_SECRET_ID="fde-support-db-credentials"
-DB_SECRET_VERSION="${DB_SECRET_VERSION:-latest}"  # pin a number for reproducible rollbacks
-# Model Armor screening (backend/security/model_armor.py; template in deployment/terraform/agent_gateway.tf).
-MODEL_ARMOR_TEMPLATE_ID="${MODEL_ARMOR_TEMPLATE_ID:-support-router-pii-masking}"
+IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/fde-support-repo/backend"
 
-echo "============================================================"
-echo " Building & Deploying Backend Service to Cloud Run "
-echo " Project         : ${PROJECT_ID} "
-echo " Region          : ${REGION} "
-echo " Service Account : ${SERVICE_ACCOUNT} "
-echo "============================================================"
+BUILD_ONLY=false
+[[ "${1:-}" == "--build-only" ]] && BUILD_ONLY=true
 
-# Navigate to repo root to access full build context
 cd "$(dirname "$0")/.."
 
-# Step 1: Submit Cloud Build job to build and push container image
-echo "Step 1: Building container image via Cloud Build..."
-gcloud builds submit \
+# Immutable tag: git SHA (+ "-dirty-<time>" for uncommitted builds, so it never collides).
+TAG="$(git rev-parse --short HEAD)"
+if [[ -n "$(git -c core.fsmonitor=false status --porcelain -- backend requirements.txt)" ]]; then
+  TAG="${TAG}-dirty-$(date +%Y%m%d%H%M%S)"
+fi
+
+echo "== Building ${IMAGE}:${TAG} via Cloud Build"
+gcloud builds submit . \
+    --project="${PROJECT_ID}" \
     --region="${REGION}" \
+    --config=cloudbuild-backend.yaml \
+    --substitutions="_TAG=${TAG}" \
     --gcs-source-staging-dir="gs://run-sources-${PROJECT_ID}-${REGION}/source" \
-    --gcs-log-dir="gs://run-sources-${PROJECT_ID}-${REGION}/logs" \
-    --config=cloudbuild-backend.yaml . \
-    --project="${PROJECT_ID}"
+    --gcs-log-dir="gs://run-sources-${PROJECT_ID}-${REGION}/logs"
 
-# Step 2: Deploy to Cloud Run with dedicated Service Account
-# --update-* flags merge with the service's existing env vars and secrets (agent URLs, OTel settings).
-echo "Step 2: Deploying to Cloud Run with dedicated identity..."
-gcloud run deploy "${SERVICE_NAME}" \
-    --image="${IMAGE_TAG}" \
-    --platform=managed \
+DIGEST="$(gcloud artifacts docker images describe "${IMAGE}:${TAG}" \
+    --project="${PROJECT_ID}" --format='value(image_summary.digest)')"
+IMAGE_REF="${IMAGE}@${DIGEST}"
+echo "== Built ${IMAGE_REF}"
+
+if [[ "${BUILD_ONLY}" == true ]]; then
+  echo "${IMAGE_REF}" > "$(dirname "$0")/.last_image"
+  echo "Pin it with: terraform apply -var backend_image=${IMAGE_REF}"
+  exit 0
+fi
+
+echo "== Rolling ${SERVICE_NAME} to ${IMAGE_REF}"
+gcloud run services update "${SERVICE_NAME}" \
+    --project="${PROJECT_ID}" \
     --region="${REGION}" \
-    --service-account="${SERVICE_ACCOUNT}" \
-    --no-allow-unauthenticated \
-    --set-cloudsql-instances="${CLOUD_SQL_CONNECTION_NAME}" \
-    --update-secrets="DB_PASSWORD=${DB_SECRET_ID}:${DB_SECRET_VERSION}" \
-    --update-env-vars="ENV=production,GCP_PROJECT_ID=${PROJECT_ID},CLOUD_SQL_CONNECTION_NAME=${CLOUD_SQL_CONNECTION_NAME},IAP_AUDIENCE=${IAP_AUDIENCE},FRONTEND_SERVICE_ACCOUNT=${FRONTEND_SERVICE_ACCOUNT},ALLOW_DIRECT_CALLERS=${ALLOW_DIRECT_CALLERS},MODEL_ARMOR_TEMPLATE_ID=${MODEL_ARMOR_TEMPLATE_ID},MODEL_ARMOR_LOCATION=${REGION}" \
-    --project="${PROJECT_ID}"
+    --image="${IMAGE_REF}"
 
-echo "=== Backend Deployment Completed Successfully! ==="
+echo "=== Backend deployed: ${IMAGE_REF}"

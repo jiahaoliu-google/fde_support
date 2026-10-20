@@ -1,46 +1,53 @@
 #!/usr/bin/env bash
+# Build the frontend image and roll it out. IMAGE ONLY: env vars (backend URL, IAP audience),
+# IAM and ingress are owned by Terraform (deployment/terraform/cloud_run.tf), which keeps
+# whatever image is live (hybrid mode), so this script and `terraform apply` never fight.
+#
+#   ./frontend/deploy.sh               build + roll the new image (code changes)
+#   ./frontend/deploy.sh --build-only  build only; prints the digest for
+#                                      `terraform apply -var frontend_image=<digest>`
 set -euo pipefail
 
 PROJECT_ID="fde-support-sandbox-dev-jliu"
 REGION="us-central1"
 SERVICE_NAME="fde-support-frontend"
-REPO_NAME="fde-support-repo"
-IMAGE_TAG="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/frontend:latest"
-SERVICE_ACCOUNT="fde-support-frontend-sa@${PROJECT_ID}.iam.gserviceaccount.com"
-# Audience of the signed IAP header (x-goog-iap-jwt-assertion) for the IAP-enabled
-# load balancer backend service 'fde-frontend-backend-service'.
-PROJECT_NUMBER="883790454740"
-IAP_BACKEND_SERVICE_ID="6965840051173915797"
-IAP_AUDIENCE="${IAP_AUDIENCE:-/projects/${PROJECT_NUMBER}/global/backendServices/${IAP_BACKEND_SERVICE_ID}}"
+IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/fde-support-repo/frontend"
 
-echo "============================================================"
-echo " Building & Deploying Frontend Service to Cloud Run "
-echo " Project         : ${PROJECT_ID} "
-echo " Region          : ${REGION} "
-echo " Service Account : ${SERVICE_ACCOUNT} "
-echo "============================================================"
+BUILD_ONLY=false
+[[ "${1:-}" == "--build-only" ]] && BUILD_ONLY=true
 
-# Navigate to repo root to access full build context
 cd "$(dirname "$0")/.."
 
-# Step 1: Submit Cloud Build job to build and push container image
-echo "Step 1: Building container image via Cloud Build..."
-gcloud builds submit \
+# Immutable tag: git SHA (+ "-dirty-<time>" for uncommitted builds, so it never collides).
+TAG="$(git rev-parse --short HEAD)"
+if [[ -n "$(git -c core.fsmonitor=false status --porcelain -- frontend)" ]]; then
+  TAG="${TAG}-dirty-$(date +%Y%m%d%H%M%S)"
+fi
+
+echo "== Building ${IMAGE}:${TAG} via Cloud Build"
+gcloud builds submit . \
+    --project="${PROJECT_ID}" \
     --region="${REGION}" \
+    --config=cloudbuild-frontend.yaml \
+    --substitutions="_TAG=${TAG}" \
     --gcs-source-staging-dir="gs://run-sources-${PROJECT_ID}-${REGION}/source" \
-    --gcs-log-dir="gs://run-sources-${PROJECT_ID}-${REGION}/logs" \
-    --config=cloudbuild-frontend.yaml . \
-    --project="${PROJECT_ID}"
+    --gcs-log-dir="gs://run-sources-${PROJECT_ID}-${REGION}/logs"
 
-# Step 2: Deploy to Cloud Run with dedicated Service Account
-echo "Step 2: Deploying to Cloud Run with dedicated identity..."
-gcloud run deploy "${SERVICE_NAME}" \
-    --image="${IMAGE_TAG}" \
-    --platform=managed \
+DIGEST="$(gcloud artifacts docker images describe "${IMAGE}:${TAG}" \
+    --project="${PROJECT_ID}" --format='value(image_summary.digest)')"
+IMAGE_REF="${IMAGE}@${DIGEST}"
+echo "== Built ${IMAGE_REF}"
+
+if [[ "${BUILD_ONLY}" == true ]]; then
+  echo "${IMAGE_REF}" > "$(dirname "$0")/.last_image"
+  echo "Pin it with: terraform apply -var frontend_image=${IMAGE_REF}"
+  exit 0
+fi
+
+echo "== Rolling ${SERVICE_NAME} to ${IMAGE_REF}"
+gcloud run services update "${SERVICE_NAME}" \
+    --project="${PROJECT_ID}" \
     --region="${REGION}" \
-    --service-account="${SERVICE_ACCOUNT}" \
-    --no-allow-unauthenticated \
-    --update-env-vars="IAP_AUDIENCE=${IAP_AUDIENCE}" \
-    --project="${PROJECT_ID}"
+    --image="${IMAGE_REF}"
 
-echo "=== Frontend Deployment Completed Successfully! ==="
+echo "=== Frontend deployed: ${IMAGE_REF}"

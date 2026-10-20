@@ -42,3 +42,6 @@ artifacts/
 .coverage.*
 coverage.xml
 htmlcov/
+
+# deploy.sh --build-only output
+**/.last_image
