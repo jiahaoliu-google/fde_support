@@ -138,6 +138,9 @@ resource "google_cloud_run_v2_service" "backend" {
     google_project_service.cloud_run,
     google_secret_manager_secret_iam_member.backend_db_secret,
     google_sql_user.postgres,
+    # Redaction chain (backend/security/model_armor.py) needs these before the revision serves.
+    google_project_iam_member.model_armor_users,
+    google_project_iam_member.backend_dlp_user,
   ]
 }
 
