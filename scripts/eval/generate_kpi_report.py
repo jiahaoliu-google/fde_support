@@ -309,8 +309,11 @@ def latency_rows(system: Optional[dict]) -> list[dict]:
             row["source"] = RUN_ROUTER_HINT
         elif key == "faq_agent_s" and router_only:
             row["source"] = "not run (router suite)"
-        elif key == "model_armor_redaction_ms" and armor.get("path") == "regex":
-            row["source"] += "; regex only (google-cloud-dlp not installed), not the DLP API"
+        elif key == "model_armor_redaction_ms" and armor.get("path") in ("regex", "mixed"):
+            by_path = armor.get("by_path") or {}
+            row["source"] += (f"; ⚠️ Model Armor used for {by_path.get('model_armor', 0)}, Cloud DLP for "
+                              f"{by_path.get('dlp', 0)} of {armor.get('messages', 0)} messages, the rest "
+                              "regex only (services disabled, unavailable or failed)")
         rows.append(row)
     return rows
 

@@ -52,6 +52,21 @@ gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
     --role="roles/secretmanager.secretAccessor" \
     --quiet
 
+# PII redaction (backend/security/model_armor.py) calls Cloud DLP deidentify_content.
+gcloud services enable dlp.googleapis.com --project="${PROJECT_ID}"
+gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
+    --member="serviceAccount:${BACKEND_SA}" \
+    --role="roles/dlp.user" \
+    --quiet
+
+# Model Armor sanitizeUserPrompt (PII de-identification + prompt-injection screening) runs
+# first; the template itself is managed by Terraform (deployment/terraform/agent_gateway.tf).
+gcloud services enable modelarmor.googleapis.com --project="${PROJECT_ID}"
+gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
+    --member="serviceAccount:${BACKEND_SA}" \
+    --role="roles/modelarmor.user" \
+    --quiet
+
 # 4. Grant Frontend Service Account Cloud Run Invoker on the BACKEND SERVICE ONLY.
 # SECURITY: the backend takes the user's identity from the IAP-signed JWT the frontend forwards
 # (accepted only from the frontend SA), or from a direct invoker's own ID token (acts as itself).

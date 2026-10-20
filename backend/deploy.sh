@@ -17,6 +17,8 @@ ALLOW_DIRECT_CALLERS="${ALLOW_DIRECT_CALLERS:-true}"
 CLOUD_SQL_CONNECTION_NAME="${PROJECT_ID}:${REGION}:fde-support-db-instance"
 DB_SECRET_ID="fde-support-db-credentials"
 DB_SECRET_VERSION="${DB_SECRET_VERSION:-latest}"  # pin a number for reproducible rollbacks
+# Model Armor screening (backend/security/model_armor.py; template in deployment/terraform/agent_gateway.tf).
+MODEL_ARMOR_TEMPLATE_ID="${MODEL_ARMOR_TEMPLATE_ID:-support-router-pii-masking}"
 
 echo "============================================================"
 echo " Building & Deploying Backend Service to Cloud Run "
@@ -48,7 +50,7 @@ gcloud run deploy "${SERVICE_NAME}" \
     --no-allow-unauthenticated \
     --set-cloudsql-instances="${CLOUD_SQL_CONNECTION_NAME}" \
     --update-secrets="DB_PASSWORD=${DB_SECRET_ID}:${DB_SECRET_VERSION}" \
-    --update-env-vars="ENV=production,GCP_PROJECT_ID=${PROJECT_ID},CLOUD_SQL_CONNECTION_NAME=${CLOUD_SQL_CONNECTION_NAME},IAP_AUDIENCE=${IAP_AUDIENCE},FRONTEND_SERVICE_ACCOUNT=${FRONTEND_SERVICE_ACCOUNT},ALLOW_DIRECT_CALLERS=${ALLOW_DIRECT_CALLERS}" \
+    --update-env-vars="ENV=production,GCP_PROJECT_ID=${PROJECT_ID},CLOUD_SQL_CONNECTION_NAME=${CLOUD_SQL_CONNECTION_NAME},IAP_AUDIENCE=${IAP_AUDIENCE},FRONTEND_SERVICE_ACCOUNT=${FRONTEND_SERVICE_ACCOUNT},ALLOW_DIRECT_CALLERS=${ALLOW_DIRECT_CALLERS},MODEL_ARMOR_TEMPLATE_ID=${MODEL_ARMOR_TEMPLATE_ID},MODEL_ARMOR_LOCATION=${REGION}" \
     --project="${PROJECT_ID}"
 
 echo "=== Backend Deployment Completed Successfully! ==="

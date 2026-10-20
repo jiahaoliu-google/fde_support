@@ -63,6 +63,8 @@ sys.path.insert(0, REPO_ROOT)
 # it would mix eval traffic into the project's traces. Latency is measured here, not from
 # spans. Must be set before any backend import.
 os.environ.setdefault("OTEL_TRACES_EXPORTER", "none")
+# Redaction runs through the real Cloud DLP API, as in production (needs roles/dlp.user).
+os.environ.setdefault("MODEL_ARMOR_DLP_ENABLED", "true")
 
 import kpi_metrics as km  # noqa: E402
 from backend_probe import OP_AGENT_REPLY, OP_FALLBACK  # noqa: E402  (stdlib-only at import time)
@@ -459,9 +461,7 @@ def summarize(results: list[dict], pricing: dict, run_info: dict) -> dict:
         "routing": routing,
         "latency": latency,
         "db": {**db, "t3_gated": t3_gated},
-        "model_armor": {"path": (redactions[0]["path"] if redactions else None),
-                        "messages": len(redactions),
-                        "messages_changed": sum(1 for r in redactions if r["changed"])},
+        "model_armor": _model_armor_summary(redactions),
         "errors": errors,
         "tokens": tokens,
         "cost": cost,
@@ -469,6 +469,23 @@ def summarize(results: list[dict], pricing: dict, run_info: dict) -> dict:
         "gates": gates,
         "misrouted": misrouted,
     }
+
+
+def _model_armor_summary(redactions: list) -> dict:
+    """Which redaction path ran per message. path: "model_armor" / "dlp" (all messages on that
+    service path), "regex" (none on a service), "mixed"."""
+    by_path = _count(r.get("path") or "regex" for r in redactions)
+    service = {"model_armor", "dlp"}
+    if not redactions:
+        path = None
+    elif len(by_path) == 1 and set(by_path) <= service:
+        path = next(iter(by_path))
+    elif service & set(by_path):
+        path = "mixed"
+    else:
+        path = "regex"
+    return {"path": path, "by_path": by_path, "messages": len(redactions),
+            "messages_changed": sum(1 for r in redactions if r["changed"])}
 
 
 def _count(values) -> dict:

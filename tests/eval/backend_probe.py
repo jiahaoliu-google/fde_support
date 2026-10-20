@@ -60,9 +60,9 @@ class BackendProbe:
         self.customer_id = f"eval-{uuid.uuid4().hex[:12]}"
         self.keep_rows = keep_rows
         self._chat, self._tickets = chat, tickets
-        # TODO(security): CI has no google-cloud-dlp, so redaction is regex-only there.
-        self.model_armor_path = ("dlp" if getattr(model_armor, "dlp_client", None)
-                                 and getattr(model_armor, "project_id", None) else "regex")
+        self._model_armor = model_armor
+        # Configured state; each message records the path that actually ran.
+        self.model_armor_path = model_armor.dlp_status()
 
     # ------------------------------------------------------------------ info
     def info(self) -> dict:
@@ -81,13 +81,13 @@ class BackendProbe:
     # ------------------------------------------------------------- redaction
     async def redact(self, message: str) -> tuple[str, dict]:
         """(redacted message, {latency_ms, changed, path}). In a worker thread because
-        the DLP path is a blocking network call."""
+        the DLP path is a blocking network call. `path` is "dlp" or "regex": what ran."""
         def run():
             start = time.perf_counter()
-            out = self._chat._redact(message)
-            return out, (time.perf_counter() - start) * 1000.0
-        out, ms = await asyncio.to_thread(run)
-        return out, {"latency_ms": ms, "changed": out != message, "path": self.model_armor_path}
+            out, path = self._model_armor.redact_with_path(message)
+            return out, path, (time.perf_counter() - start) * 1000.0
+        out, path, ms = await asyncio.to_thread(run)
+        return out, {"latency_ms": ms, "changed": out != message, "path": path}
 
     # ---------------------------------------------------------------- writes
     def _timed_write(self, op: str, fn: Callable) -> tuple[object, dict]:

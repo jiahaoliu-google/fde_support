@@ -31,6 +31,13 @@ if not os.environ.get("DATABASE_URL"):
 # Offline tests: never export spans to Cloud Trace (see backend/core/telemetry.py).
 os.environ.setdefault("OTEL_TRACES_EXPORTER", "none")
 
+# Offline tests: never call the real Cloud DLP API. It uses gRPC, which the no_network
+# guard (tests/helpers/no_network.py) doesn't block. DLP behavior is tested with a fake
+# client in tests/backend/test_model_armor_dlp.py.
+os.environ.setdefault("MODEL_ARMOR_DLP_ENABLED", "false")
+# Same for Model Armor (tests/backend/test_model_armor_api.py uses a fake client).
+os.environ.setdefault("MODEL_ARMOR_ENABLED", "false")
+
 
 def pytest_unconfigure(config):  # noqa: ARG001 - pytest hook signature
     if _TEST_DB_DIR:
