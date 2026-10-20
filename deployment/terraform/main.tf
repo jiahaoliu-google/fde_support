@@ -35,10 +35,10 @@ resource "google_storage_bucket" "faq_docs" {
 resource "google_discovery_engine_data_store" "faq_datastore" {
   project                     = var.project_id
   location                    = "global"
-  data_store_id               = "fde-support-faq-datastore"
-  display_name                = "Customer Support FAQ Knowledge Base"
+  data_store_id               = "fde-support-faq-datastore-v2"
+  display_name                = "Customer Support FAQ Knowledge Base V2"
   industry_vertical           = "GENERIC"
-  content_config              = "CONTENT_REQUIRED"
+  content_config              = "NO_CONTENT"
   solution_types              = ["SOLUTION_TYPE_SEARCH"]
   create_advanced_site_search = false
 
@@ -53,13 +53,78 @@ resource "google_sql_database_instance" "sandbox_db" {
   database_version = "POSTGRES_15"
 
   settings {
-    tier = "db-f1-micro"
+    # TDD: "Cloud SQL (PostgreSQL, 1 vCPU, 3.75 GB RAM sandbox instance)".
+    tier    = var.db_tier
+    edition = "ENTERPRISE"
+    # Live instance was switched to HA in the console; kept (set ZONAL to halve cost).
+    availability_type           = "REGIONAL"
+    deletion_protection_enabled = true
+
+    maintenance_window {
+      day          = 7
+      hour         = 3
+      update_track = "stable"
+    }
+
+    password_validation_policy {
+      enable_password_policy      = true
+      min_length                  = 6
+      disallow_username_substring = false
+      reuse_interval              = 0
+    }
+
     ip_configuration {
-      ipv4_enabled = true
+      # Public IP has no authorized networks: only the Cloud SQL Auth Proxy / Cloud Run
+      # connector (IAM-authenticated) can reach it. Private IP lives in the sandbox VPC.
+      ipv4_enabled                                  = var.enable_public_ip
+      private_network                               = google_compute_network.sandbox.id
+      enable_private_path_for_google_cloud_services = true
+      ssl_mode                                      = "ENCRYPTED_ONLY"
+    }
+
+    backup_configuration {
+      enabled                        = true
+      point_in_time_recovery_enabled = true
+      start_time                     = "03:00"
+      transaction_log_retention_days = 7
+      backup_retention_settings {
+        retained_backups = 7
+      }
+    }
+
+    insights_config {
+      query_insights_enabled  = true
+      record_application_tags = true
+      record_client_address   = false
+    }
+
+    database_flags {
+      name  = "cloudsql.iam_authentication"
+      value = "on"
+    }
+
+    # Audit trail for database access (TDD "Observability & Audit").
+    database_flags {
+      name  = "log_connections"
+      value = "on"
+    }
+    database_flags {
+      name  = "log_disconnections"
+      value = "on"
+    }
+    database_flags {
+      name  = "log_checkpoints"
+      value = "on"
+    }
+    database_flags {
+      name  = "log_lock_waits"
+      value = "on"
     }
   }
 
-  deletion_protection = false
+  deletion_protection = true
+
+  depends_on = [google_service_networking_connection.psa]
 }
 
 resource "google_sql_database" "support_tickets" {
