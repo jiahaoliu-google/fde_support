@@ -63,10 +63,12 @@ jobs:
                       -r agents/sentiment_router/requirements.txt \
                       pyyaml
 
-      - name: Run unit and transaction tests (offline)
+      - name: Run unit and transaction tests (offline, ≥ 80% coverage gate)
         env:
           DATABASE_URL: "sqlite:///./test_local.db"
-        run: python -m unittest discover -s tests -p "test_*.py" -v
+        # Threshold and scope: .coveragerc. Below 80%, agent-eval (needs: unit) is skipped.
+        run: pytest -v --cov --cov-report=term-missing
+
 
   agent-eval:
     name: Agent eval (100 tickets, report-only)

@@ -36,3 +36,9 @@ archive/
 
 # Generated eval / grading outputs (reproducible)
 artifacts/
+
+# Coverage output (pytest --cov)
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/

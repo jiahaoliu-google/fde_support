@@ -1,0 +1,29 @@
+# Coverage settings for the CI coverage gate (.github/workflows/tests.yml and the `unit`
+# job in eval-pr.yml). The gate is line coverage of the application code only.
+#
+# Run it locally the same way CI does:
+#   pytest --cov --cov-report=term-missing
+#
+# Plain `pytest` doesn't measure coverage, so running a single test file never trips the gate.
+
+[run]
+source =
+    backend
+    agents
+    common
+    frontend
+omit =
+    */.venv/*
+    */tests/*
+    */test_*.py
+
+[report]
+fail_under = 80
+show_missing = True
+skip_covered = False
+precision = 1
+exclude_lines =
+    pragma: no cover
+    if __name__ == .__main__.:
+    if TYPE_CHECKING:
+    raise NotImplementedError

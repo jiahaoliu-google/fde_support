@@ -19,15 +19,18 @@ SENTIMENT_LABELS = (URGENT, NEUTRAL)
 INVALID = "INVALID"   # agent answered, but not with a usable label
 ERROR = "ERROR"       # agent call failed (exception / timeout)
 
-# Gate targets. Routing comes from the TDD; the system targets are the *proposed*
-# values in docs/EVALUATION_PLAN.md (M1, M5, M6). The TDD sets no latency/cost targets.
+# Gate targets: ONLY values written in the TDD. Everything else the eval measures
+# (agent / Model Armor latency, tokens, cost, extra judge metrics) has no TDD or
+# Scoping target and is reported without one. ROUGE-L, BLEU, grounding recall and
+# faithfulness targets live in static_rubric_evaluator.TDD_GATES.
 KPI_TARGETS = {
-    "routing_accuracy": 0.95,      # TDD North Star
-    "urgent_f1": 0.95,             # TDD CI gate
-    "e2e_latency_p95_s": 3.0,      # proposed (M1)
-    "search_latency_p95_s": 1.2,   # proposed (M5)
-    "error_rate": 0.0,             # proposed (M6)
+    "routing_accuracy": 0.95,      # T1  TDD North Star
+    "urgent_f1": 0.95,             # T5  TDD Testing: CI gate
+    "db_write_p95_ms": 100.0,      # T3  TDD North Star: Cloud SQL ticket-state write, p95
 }
+# T3 is defined for Cloud SQL (PostgreSQL). On any other database the latency is
+# still measured and shown, but not judged against the target.
+T3_GATED_DIALECTS = ("postgresql",)
 
 DEFAULT_PRICING_PATH = os.path.join(os.path.dirname(__file__), "pricing.yaml")
 
