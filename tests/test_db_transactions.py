@@ -14,7 +14,11 @@ sys.path.insert(0, ROOT)
 from fastapi.testclient import TestClient  # noqa: E402
 
 import backend.main as m  # noqa: E402
-from database.models import Ticket  # noqa: E402
+
+from backend.clients import agent_runtime  # noqa: E402
+
+from backend.api import deps  # noqa: E402
+from backend.db.models import Ticket  # noqa: E402
 from db_test_utils import TempDatabase  # noqa: E402
 
 USER = "txn-user@example.com"
@@ -22,11 +26,11 @@ USER = "txn-user@example.com"
 
 class TestTransactionBoundaries(unittest.TestCase):
     def setUp(self):
-        self.saved = (m.call_sentiment_agent, m.call_faq_agent, m.delete_faq_session)
+        self.saved = (agent_runtime.call_sentiment_agent, agent_runtime.call_faq_agent, agent_runtime.delete_faq_session)
         self.db = TempDatabase()
         self.db.install(m.app)
-        m.app.dependency_overrides[m.get_caller] = lambda: USER
-        m.rag_circuit_breaker.record_success()
+        m.app.dependency_overrides[deps.get_caller] = lambda: USER
+        agent_runtime.rag_circuit_breaker.record_success()
         self.client = TestClient(m.app)
         self.checked_out = []
         self.on_faq = None
@@ -34,7 +38,7 @@ class TestTransactionBoundaries(unittest.TestCase):
 
         async def sentiment(msg):
             self.checked_out.append(("sentiment", self.db.connections_in_use()))
-            return {"sentiment": m.SENTIMENT_NEUTRAL}
+            return {"sentiment": agent_runtime.SENTIMENT_NEUTRAL}
 
         async def faq(msg, sid, uid="x"):
             self.checked_out.append(("faq", self.db.connections_in_use()))
@@ -45,11 +49,11 @@ class TestTransactionBoundaries(unittest.TestCase):
         async def delete(*a, **k):
             return True
 
-        m.call_sentiment_agent, m.call_faq_agent, m.delete_faq_session = sentiment, faq, delete
+        agent_runtime.call_sentiment_agent, agent_runtime.call_faq_agent, agent_runtime.delete_faq_session = sentiment, faq, delete
 
     def tearDown(self):
-        m.call_sentiment_agent, m.call_faq_agent, m.delete_faq_session = self.saved
-        m.app.dependency_overrides.pop(m.get_caller, None)
+        agent_runtime.call_sentiment_agent, agent_runtime.call_faq_agent, agent_runtime.delete_faq_session = self.saved
+        m.app.dependency_overrides.pop(deps.get_caller, None)
         self.db.uninstall(m.app)
 
     def _ticket(self):

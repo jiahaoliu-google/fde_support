@@ -35,7 +35,7 @@ class TestDecoupledBackendAPI(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json()["detail"], "Message cannot be empty")
 
-    @patch("backend.main.call_sentiment_agent")
+    @patch("backend.clients.agent_runtime.call_sentiment_agent")
     def test_decoupled_urgent_human_escalation_route(self, mock_sentiment):
         """Urgent ticket sent over HTTP to Agent Runtime, classified and escalated."""
         mock_sentiment.return_value = {
@@ -54,8 +54,8 @@ class TestDecoupledBackendAPI(unittest.TestCase):
         self.assertIn("Order #12345", data["answer"])
         self.assertEqual(data["extracted_entities"].get("order_id"), "12345")
 
-    @patch("backend.main.call_faq_agent")
-    @patch("backend.main.call_sentiment_agent")
+    @patch("backend.clients.agent_runtime.call_faq_agent")
+    @patch("backend.clients.agent_runtime.call_sentiment_agent")
     def test_decoupled_neutral_rag_route(self, mock_sentiment, mock_faq):
         """Neutral query sent over HTTP to Agent Runtime, executing Vertex AI RAG search."""
         mock_sentiment.return_value = {

@@ -76,7 +76,7 @@ class Settings(BaseSettings):
     CIRCUIT_FAILURE_THRESHOLD: int = 3
     CIRCUIT_RECOVERY_TIMEOUT: float = 30.0
 
-    # Caller identity (see backend/caller_identity.py)
+    # Caller identity (see backend/security/caller_identity.py)
     IAP_AUDIENCE: str = ""                # audience of the IAP-signed JWT forwarded by the frontend
     FRONTEND_SERVICE_ACCOUNT: str = ""    # only invoker allowed to forward IAP assertions
     ALLOW_DIRECT_CALLERS: bool = False    # testing: other invokers act as their own identity
@@ -132,7 +132,7 @@ class Settings(BaseSettings):
                 database=self.DB_NAME,
             ).render_as_string(hide_password=False)
 
-        local_sqlite_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'database', 'fde_support.db'))
+        local_sqlite_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'database', 'fde_support.db'))
         logger.warning(
             "No database password available; using local SQLite at %s (development only).",
             local_sqlite_path,

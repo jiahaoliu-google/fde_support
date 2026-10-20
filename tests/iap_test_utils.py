@@ -1,6 +1,6 @@
 """Test helpers: real ES256-signed IAP assertions and a backend resolver that trusts the test key.
 
-Exercises the production verification code (common.iap_auth / backend.caller_identity);
+Exercises the production verification code (common.iap_auth / backend.security.caller_identity);
 only the public-key source is replaced.
 """
 import time
@@ -11,6 +11,8 @@ from google.auth import crypt
 from google.auth import jwt as google_jwt
 
 from common.iap_auth import FORWARDED_IAP_ASSERTION_HEADER, IAP_ISSUER, IapVerifier
+
+import no_network  # noqa: F401  (blocks outbound network for every test using these helpers)
 
 TEST_AUDIENCE = "/projects/123/global/backendServices/456"
 TEST_KID = "test-kid"
@@ -56,11 +58,11 @@ def iap_headers(email: str) -> dict:
 
 
 def install_backend_test_resolver():
-    """Point backend.main at a resolver that trusts the test signing key (idempotent)."""
-    import backend.main as main
-    from backend.caller_identity import CallerResolver
+    """Point backend.api.deps at a resolver that trusts the test signing key (idempotent)."""
+    from backend.api import deps
+    from backend.security.caller_identity import CallerResolver
 
-    if getattr(main._caller_resolver, "_is_test_resolver", False):
+    if getattr(deps._caller_resolver, "_is_test_resolver", False):
         return
     resolver = CallerResolver(
         iap_verifier=make_verifier(),
@@ -69,4 +71,4 @@ def install_backend_test_resolver():
         trust_invoker_token=False,  # local tests: nothing verified the Authorization header
     )
     resolver._is_test_resolver = True
-    main._caller_resolver = resolver
+    deps._caller_resolver = resolver

@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 # Ensure workspace root is in sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+import no_network  # noqa: F401,E402  (blocks outbound network)
 from frontend.server import app
 
 class TestFrontendServer(unittest.TestCase):

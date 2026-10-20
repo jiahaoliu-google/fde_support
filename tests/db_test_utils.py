@@ -3,9 +3,9 @@
 Not a test module (no ``test_`` prefix), so unittest discovery doesn't collect it.
 
 TempDatabase gives each test class its own empty SQLite file and wires it into the app
-by overriding the ``get_db`` dependency. Every DB access in backend/main.py goes through
+by overriding the ``get_db`` dependency. Every DB access in the backend goes through
 that dependency, so the tests never touch ./test_local.db, local_dev.db or Cloud SQL,
-and don't depend on which test module imported ``database.db`` first.
+and don't depend on which test module imported ``backend.db.session`` first.
 
 fail_sql makes the Nth SQL statement that starts with a given prefix raise
 OperationalError at the driver boundary, i.e. after earlier statements of the same
@@ -21,8 +21,10 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import sessionmaker
 
-from database.db import get_db
-from database.models import Base, Message, Ticket
+from backend.db.session import get_db
+from backend.db.models import Base, Message, Ticket
+
+import no_network  # noqa: F401  (blocks outbound network for every test using these helpers)
 
 
 class TempDatabase:
@@ -35,7 +37,7 @@ class TempDatabase:
             connect_args={"check_same_thread": False},  # TestClient runs the app in a worker thread
         )
         Base.metadata.create_all(self.engine)
-        # Same session options as database.db.SessionLocal.
+        # Same session options as backend.db.session.SessionLocal.
         self.Session = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
 
     def get_db(self):

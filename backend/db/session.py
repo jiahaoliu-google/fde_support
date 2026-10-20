@@ -1,10 +1,13 @@
-import os
+"""SQLAlchemy engine, session factory, the FastAPI `get_db` dependency and `init_db`.
+
+Run `python -m backend.db.session` to create the tables on the configured database.
+"""
 import logging
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from database.models import Base
 
-from backend.config import settings
+from backend.core.config import settings
+from backend.db.models import Base
 
 logger = logging.getLogger(__name__)
 

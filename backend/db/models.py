@@ -1,10 +1,20 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Column, String, Text, DateTime, ForeignKey
-from sqlalchemy.orm import declarative_base, relationship
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import DeclarativeBase, relationship
 
-Base = declarative_base()
+
+class Base(DeclarativeBase):
+    pass
+
+
+def utc_now() -> datetime:
+    """Current UTC time as a naive datetime, matching the existing timezone-less columns.
+
+    Replaces the deprecated datetime.utcnow() without changing what gets stored.
+    """
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
 
 class Ticket(Base):
     __tablename__ = "tickets"
@@ -14,7 +24,7 @@ class Ticket(Base):
     customer_id = Column(String(255), nullable=False, index=True)
     current_status = Column(String(50), nullable=False, default="NEW", index=True) # NEW, ESCALATED, RESOLVED
     sentiment = Column(String(50), nullable=False, default="NEUTRAL_FACTUAL") # NEUTRAL_FACTUAL, URGENT_FRUSTRATED
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
 
     # One-to-many relationship with Message
     messages = relationship("Message", back_populates="ticket", cascade="all, delete-orphan")
@@ -26,7 +36,7 @@ class Message(Base):
     ticket_id = Column(String(36), ForeignKey("tickets.id", ondelete="CASCADE"), nullable=False, index=True)
     sender = Column(String(50), nullable=False) # CUSTOMER, AGENT, SYSTEM
     message_text = Column(Text, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
 
     # Relationship back to Ticket
     ticket = relationship("Ticket", back_populates="messages")

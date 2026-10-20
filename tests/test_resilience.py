@@ -1,15 +1,17 @@
 import os
 import sys
 import unittest
-from unittest.mock import patch, AsyncMock, MagicMock
+from unittest.mock import patch, AsyncMock
 from fastapi.testclient import TestClient
 
 # Ensure workspace root is in sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from backend.main import app, rag_circuit_breaker
+from backend.main import app
+
+from backend.clients.agent_runtime import rag_circuit_breaker
 from iap_test_utils import iap_headers  # noqa: E402
-from backend.circuit_breaker import CircuitState
+from backend.core.circuit_breaker import CircuitState
 
 class TestHTTPServiceResilience(unittest.TestCase):
 
@@ -20,7 +22,7 @@ class TestHTTPServiceResilience(unittest.TestCase):
     def tearDown(self):
         rag_circuit_breaker.record_success()
 
-    @patch("backend.main.call_sentiment_agent")
+    @patch("backend.clients.agent_runtime.call_sentiment_agent")
     def test_downstream_sentiment_agent_offline_escalates_to_human_queue(self, mock_sentiment):
         """
         Verifies resilience when Sentiment Agent raises an exception.
@@ -36,8 +38,8 @@ class TestHTTPServiceResilience(unittest.TestCase):
         self.assertEqual(data["sentiment"], "UNAVAILABLE")
         self.assertIn("human support queue service", data["answer"])
 
-    @patch("backend.main.call_faq_agent")
-    @patch("backend.main.call_sentiment_agent")
+    @patch("backend.clients.agent_runtime.call_faq_agent")
+    @patch("backend.clients.agent_runtime.call_sentiment_agent")
     def test_downstream_faq_agent_error_retries_and_escalates(self, mock_sentiment, mock_faq):
         """
         Verifies resilience when Sentiment agent succeeds but FAQ agent fails.

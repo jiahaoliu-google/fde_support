@@ -1,6 +1,5 @@
 import os
 import sys
-import uuid
 import unittest
 from unittest.mock import patch, AsyncMock
 from fastapi.testclient import TestClient
@@ -8,7 +7,9 @@ from fastapi.testclient import TestClient
 # Ensure workspace root is in sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from backend.main import app, rag_circuit_breaker
+from backend.main import app
+
+from backend.clients.agent_runtime import rag_circuit_breaker
 from iap_test_utils import iap_headers  # noqa: E402
 
 class TestDatabaseSessionLifecycleIntegration(unittest.TestCase):
@@ -17,9 +18,9 @@ class TestDatabaseSessionLifecycleIntegration(unittest.TestCase):
         self.client = TestClient(app, headers=iap_headers("alex@example.com"))
         rag_circuit_breaker.record_success()
 
-    @patch("backend.main.delete_faq_session", new_callable=AsyncMock, return_value=True)
-    @patch("backend.main.call_faq_agent")
-    @patch("backend.main.call_sentiment_agent")
+    @patch("backend.clients.agent_runtime.delete_faq_session", new_callable=AsyncMock, return_value=True)
+    @patch("backend.clients.agent_runtime.call_faq_agent")
+    @patch("backend.clients.agent_runtime.call_sentiment_agent")
     def test_session_id_mapping_escalation_and_resolution(self, mock_sentiment, mock_faq, mock_delete_session):
         """
         Comprehensive test for:
@@ -95,8 +96,8 @@ class TestDatabaseSessionLifecycleIntegration(unittest.TestCase):
     def _new_ticket(self):
         return self.client.post("/api/tickets/create", json={}).json()["ticket_id"]
 
-    @patch("backend.main.call_faq_agent")
-    @patch("backend.main.call_sentiment_agent")
+    @patch("backend.clients.agent_runtime.call_faq_agent")
+    @patch("backend.clients.agent_runtime.call_sentiment_agent")
     def test_escalated_ticket_followups_bypass_agents(self, mock_sentiment, mock_faq):
         """Scoping rule: once ESCALATED, no sentiment/FAQ call; follow-ups are queued for the human."""
         ticket_id = self._new_ticket()
@@ -118,8 +119,8 @@ class TestDatabaseSessionLifecycleIntegration(unittest.TestCase):
         self.assertIn("Any update on that?", customer_turns)
         self.assertFalse(any(m["sender"] == "AGENT" for m in transcript))
 
-    @patch("backend.main.call_faq_agent")
-    @patch("backend.main.call_sentiment_agent")
+    @patch("backend.clients.agent_runtime.call_faq_agent")
+    @patch("backend.clients.agent_runtime.call_sentiment_agent")
     def test_faq_soft_fallback_escalates(self, mock_sentiment, mock_faq):
         """'Routed to our support team' must actually escalate, so the FAQ agent isn't used again."""
         ticket_id = self._new_ticket()

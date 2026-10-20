@@ -2,7 +2,6 @@ import os
 import json
 import uuid
 import logging
-import asyncio
 from google.adk.agents import Agent
 from google.adk.apps import App
 from google.adk.runners import Runner

@@ -55,7 +55,7 @@ gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
 # 4. Grant Frontend Service Account Cloud Run Invoker on the BACKEND SERVICE ONLY.
 # SECURITY: the backend takes the user's identity from the IAP-signed JWT the frontend forwards
 # (accepted only from the frontend SA), or from a direct invoker's own ID token (acts as itself).
-# It never trusts X-User-Email. See backend/caller_identity.py.
+# It never trusts X-User-Email. See backend/security/caller_identity.py.
 echo "Step 4: Scoping Cloud Run Invoker on backend service to Frontend Service Account..."
 REGION="us-central1"
 BACKEND_SERVICE="fde-support-backend"

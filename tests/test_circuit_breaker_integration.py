@@ -16,10 +16,11 @@ from fastapi.testclient import TestClient
 # Ensure workspace root is in sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-import backend.main as main  # noqa: E402
-from backend.main import app, rag_circuit_breaker  # noqa: E402
+from backend.clients import agent_runtime  # noqa: E402
+from backend.main import app  # noqa: E402
+from backend.clients.agent_runtime import rag_circuit_breaker  # noqa: E402
 from iap_test_utils import iap_headers  # noqa: E402
-from backend.circuit_breaker import CircuitState  # noqa: E402
+from backend.core.circuit_breaker import CircuitState  # noqa: E402
 
 NEUTRAL = {"sentiment": "NEUTRAL_FACTUAL", "order_id": None, "product_name": None, "email": None}
 FALLBACK_ROUTE = "Mock Human Queue Service (Circuit Breaker OPEN Fallback)"
@@ -33,8 +34,8 @@ class _ChatTestBase(unittest.TestCase):
         rag_circuit_breaker.record_success()
         rag_circuit_breaker.recovery_timeout_seconds = 30.0
         self.patches = [
-            patch.object(main, "call_sentiment_agent", AsyncMock(return_value=NEUTRAL)),
-            patch.object(main, "call_faq_agent", AsyncMock()),
+            patch.object(agent_runtime, "call_sentiment_agent", AsyncMock(return_value=NEUTRAL)),
+            patch.object(agent_runtime, "call_faq_agent", AsyncMock()),
             patch("asyncio.sleep", new_callable=AsyncMock),
         ]
         _, self.mock_faq, self.mock_sleep = [p.start() for p in self.patches]
@@ -106,12 +107,12 @@ class TestRetryPolicy(_ChatTestBase):
 
     def test_backoff_is_exponential_with_jitter_and_bounded(self):
         self.mock_faq.side_effect = RuntimeError("503")
-        with patch.object(main.random, "uniform", side_effect=lambda lo, hi: hi) as mock_uniform:
+        with patch.object(agent_runtime.random, "uniform", side_effect=lambda lo, hi: hi) as mock_uniform:
             self.ask()
         # Full jitter: uniform(0, cap), cap doubling from the base delay.
         self.assertEqual([c.args for c in mock_uniform.call_args_list], [(0, 0.5), (0, 1.0)])
         self.assertEqual([c.args[0] for c in self.mock_sleep.call_args_list], [0.5, 1.0])
-        self.assertLessEqual(main.faq_retry_delay(10), main.FAQ_RETRY_MAX_DELAY_SECONDS)
+        self.assertLessEqual(agent_runtime.faq_retry_delay(10), agent_runtime.FAQ_RETRY_MAX_DELAY_SECONDS)
 
     def test_timeout_is_not_retried_and_counts_once(self):
         self.mock_faq.side_effect = httpx.ReadTimeout("agent hung")
