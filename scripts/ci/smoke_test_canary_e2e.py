@@ -157,16 +157,19 @@ def run_canary_e2e_smoke(
 
             chat_data = chat_res.json()
             ticket_id = chat_data.get("ticket_id")
-            if (
-                not ticket_id
-                or chat_data.get("routed_to") != "FAQ_AGENT"
-                or chat_data.get("ticket_status") != "IN_PROGRESS"
-                or not chat_data.get("grounded")
-            ):
-                logger.error("Unexpected neutral chat response: %s", chat_data)
+            if not ticket_id:
+                logger.error("Missing ticket_id in neutral chat response: %s", chat_data)
                 return False
 
             try:
+                if (
+                    chat_data.get("routed_to") != "Automated RAG Assistant"
+                    or chat_data.get("ticket_status") != "IN_PROGRESS"
+                    or not chat_data.get("grounded")
+                ):
+                    logger.error("Unexpected neutral chat response: %s", chat_data)
+                    return False
+
                 ticket_res = client.get(f"{backend_url}/api/tickets/{ticket_id}", headers=b_headers)
                 if ticket_res.status_code != 200:
                     logger.error("Failed to fetch created ticket %s: HTTP %s", ticket_id, ticket_res.status_code)
@@ -199,16 +202,18 @@ def run_canary_e2e_smoke(
 
             urgent_data = urgent_res.json()
             urgent_ticket_id = urgent_data.get("ticket_id")
-            if (
-                not urgent_ticket_id
-                or urgent_data.get("sentiment") != "URGENT_FRUSTRATED"
-                or urgent_data.get("routed_to") != "HUMAN_ESCALATION"
-                or urgent_data.get("ticket_status") != "ESCALATED"
-            ):
-                logger.error("Unexpected urgent escalation response: %s", urgent_data)
+            if not urgent_ticket_id:
+                logger.error("Missing ticket_id in urgent escalation response: %s", urgent_data)
                 return False
 
             try:
+                if (
+                    urgent_data.get("sentiment") != "URGENT_FRUSTRATED"
+                    or urgent_data.get("routed_to") != "Human Escalation Queue"
+                    or urgent_data.get("ticket_status") != "ESCALATED"
+                ):
+                    logger.error("Unexpected urgent escalation response: %s", urgent_data)
+                    return False
                 logger.info("✅ Urgent escalation verified (ticket_id=%s).", urgent_ticket_id)
             finally:
                 res_close = client.post(

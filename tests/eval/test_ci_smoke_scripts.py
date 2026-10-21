@@ -126,7 +126,7 @@ def _build_mock_canary_handler(
     frontend_tickets_status: int = 401,
     backend_health_status: int = 200,
     customer_msg_text: str = "My email is [EMAIL_REDACTED], what is the status of order #10002?",
-    urgent_routed_to: str = "HUMAN_ESCALATION",
+    urgent_routed_to: str = "Human Escalation Queue",
 ):
     """Builds a deterministic httpx.MockTransport handler for the 5 canary checks."""
 
@@ -150,11 +150,11 @@ def _build_mock_canary_handler(
                     200,
                     json={
                         "ticket_id": "t-neutral-1",
-                        "sentiment": "NEUTRAL_INQUIRY",
-                        "routed_to": "FAQ_AGENT",
+                        "sentiment": "NEUTRAL_FACTUAL",
+                        "routed_to": "Automated RAG Assistant",
                         "ticket_status": "IN_PROGRESS",
                         "grounded": True,
-                        "reply": "Order #10002 is PROCESSING.",
+                        "answer": "Order #10002 is PROCESSING.",
                     },
                 )
             return httpx.Response(
@@ -165,7 +165,7 @@ def _build_mock_canary_handler(
                     "routed_to": urgent_routed_to,
                     "ticket_status": "ESCALATED",
                     "grounded": False,
-                    "reply": "Escalated to specialist.",
+                    "answer": "Escalated to specialist.",
                 },
             )
         if url == "https://canary---backend.run.app/api/tickets/t-neutral-1":
