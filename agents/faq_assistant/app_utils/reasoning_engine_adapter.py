@@ -1,6 +1,7 @@
 import inspect
 import json
 import logging
+import os
 from fastapi import FastAPI, HTTPException, Request, responses
 from vertexai.agent_engines.templates.adk import AdkApp
 from app_utils import services
@@ -29,6 +30,19 @@ def attach_reasoning_engine_routes(app: FastAPI) -> None:
         nonlocal runtime, app_name, streaming_methods, sync_methods
         if runtime is None:
             from agent import app as adk_app
+
+            try:
+                from google.cloud.aiplatform import initializer
+
+                if not getattr(initializer.global_config, "_project", None):
+                    try:
+                        _ = initializer.global_config.project
+                    except Exception:
+                        initializer.global_config._project = os.environ.get(
+                            "GOOGLE_CLOUD_PROJECT", "local-dev"
+                        )
+            except ImportError:
+                pass
 
             app_name = adk_app.name
             runtime = AdkApp(
