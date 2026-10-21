@@ -48,7 +48,8 @@ _RESOURCE_PATH = re.compile(r"projects/[\w.-]+/locations/[\w.-]+/\S*?dataStores/
 # Internal names that must never reach customers.
 _INTERNAL_TERMS = re.compile(
     r"\b(?:search_support_records|get_order_status|set_model_response|"
-    r"vertex\s+ai(?:\s+agent)?\s+search|discovery\s+engine|grounding\s+metadata)\b",
+    r"vertex\s+ai(?:\s+agent)?(?:\s+search)?|discovery\s+engine|grounding\s+metadata|"
+    r"cloud\s+sql|cloud\s+run|agent\s+platform|agent\s+engine|model\s+armor)\b",
     re.IGNORECASE,
 )
 

@@ -47,7 +47,7 @@ TICKET_RESOLVED_DURING_REQUEST_DETAIL = (
     "Please click 'Start New Ticket' to submit new inquiries."
 )
 TICKET_EXPIRED_DETAIL = (
-    "This ticket session has expired in the Agent Platform. "
+    "This ticket session has expired. "
     "Please click 'Start New Ticket' to submit new inquiries."
 )
 

@@ -7,7 +7,7 @@ import time
 import httpx
 from urllib.parse import urlsplit
 from fastapi import FastAPI, HTTPException, Request, Response
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 
 from common.iap_auth import (
     FORWARDED_IAP_ASSERTION_HEADER,
@@ -66,9 +66,21 @@ async def reject_cross_site_requests(request: Request, call_next):
         return JSONResponse(status_code=403, content={"detail": "Cross-site request blocked"})
     return await call_next(request)
 
-INDEX_HTML_PATH = os.path.join(os.path.dirname(__file__), "index.html")
+FRONTEND_DIR = os.path.dirname(os.path.abspath(__file__))
+DIST_DIR = os.path.join(FRONTEND_DIR, "dist")
+ASSETS_DIR = os.path.join(DIST_DIR, "assets")
+DIST_INDEX_HTML_PATH = os.path.join(DIST_DIR, "index.html")
+
+INDEX_HTML_PATH = os.path.join(FRONTEND_DIR, "index.html")
 if not os.path.exists(INDEX_HTML_PATH):
     INDEX_HTML_PATH = os.path.join(os.getcwd(), "index.html")
+
+
+def resolve_index_html_path() -> str:
+    """Prefers the compiled Vite entry shell (`frontend/dist/index.html`) when built."""
+    if os.path.exists(DIST_INDEX_HTML_PATH):
+        return DIST_INDEX_HTML_PATH
+    return INDEX_HTML_PATH
 
 CLOUD_RUN_BACKEND_URL = os.environ.get("CLOUD_RUN_BACKEND_URL", "https://fde-support-backend-883790454740.us-central1.run.app").rstrip("/")
 
@@ -162,11 +174,21 @@ async def get_current_user(request: Request):
     identity = await require_identity(request)
     return {"user_email": identity.email}
 
+@app.get("/assets/{asset_path:path}")
+async def get_static_asset(asset_path: str):
+    """Serves hashed Vite bundle files from `frontend/dist/assets` with path-traversal protection."""
+    base_dir = os.path.realpath(ASSETS_DIR)
+    full_path = os.path.realpath(os.path.join(base_dir, asset_path))
+    if not full_path.startswith(base_dir + os.sep) or not os.path.isfile(full_path):
+        raise HTTPException(status_code=404, detail="Not Found")
+    return FileResponse(full_path)
+
 @app.get("/", response_class=HTMLResponse)
 @app.get("/index.html", response_class=HTMLResponse)
 async def get_index():
-    if os.path.exists(INDEX_HTML_PATH):
-        with open(INDEX_HTML_PATH, "r", encoding="utf-8") as f:
+    html_path = resolve_index_html_path()
+    if os.path.exists(html_path):
+        with open(html_path, "r", encoding="utf-8") as f:
             content = f.read()
             return HTMLResponse(
                 content=content,
@@ -180,7 +202,7 @@ async def get_index():
 
 @app.exception_handler(404)
 async def custom_404_handler(request: Request, exc):
-    if not request.url.path.startswith("/api/"):
+    if not request.url.path.startswith("/api/") and not request.url.path.startswith("/assets/"):
         return await get_index()
     return JSONResponse(status_code=404, content={"detail": "Not Found"})
 

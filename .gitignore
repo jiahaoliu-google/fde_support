@@ -46,6 +46,12 @@ htmlcov/
 # deploy.sh --build-only output
 **/.last_image
 
+# Frontend Node dependencies & compiled Vite output
+node_modules/
+frontend/node_modules/
+frontend/dist/
+*.tsbuildinfo
+
 # agents-cli deploy output: per-deploy, per-project state (engine ID, timestamps,
 # operation IDs). Deploys find the engine by display name; Agent Runtime injects
 # GOOGLE_CLOUD_AGENT_ENGINE_ID at runtime. Regenerated locally on every deploy.

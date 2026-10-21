@@ -53,6 +53,7 @@ class TestDecoupledBackendAPI(unittest.TestCase):
         self.assertEqual(data["routed_to"], "Human Escalation Queue")
         self.assertFalse(data["grounded"])
         self.assertIn("Order #12345", data["answer"])
+        self.assertNotIn("Cloud SQL", data["answer"])
         self.assertEqual(data["extracted_entities"].get("order_id"), "12345")
 
     @patch("backend.clients.agent_runtime.call_faq_agent")

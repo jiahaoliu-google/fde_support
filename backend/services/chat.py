@@ -186,7 +186,7 @@ def _urgent_ack(entities: dict, sentiment_failed: bool) -> str:
     return (
         f"We hear your frustration regarding your request{order_str} and sincerely apologize for the inconvenience. "
         f"Your issue has been prioritized as URGENT and routed directly to our Senior Human Support Queue. "
-        f"A dedicated support specialist will review your ticket state in Cloud SQL and reach out to you immediately."
+        f"A dedicated support specialist will review your ticket and reach out to you immediately."
     )
 
 

@@ -18,7 +18,8 @@ from agents.faq_assistant.answer_sanitizer import (  # noqa: E402
 )
 
 LEAK_MARKERS = ("twcs_", "doc_id", "datastore", "data store", "knowledge base", "support records",
-                "other users", "search_support_records", "get_order_status", "dataStores/")
+                "other users", "search_support_records", "get_order_status", "dataStores/",
+                "cloud sql", "cloud run", "agent platform")
 
 
 def assert_clean(test, text):
@@ -72,7 +73,8 @@ class TestSanitizeAnswer(unittest.TestCase):
     def test_residual_backend_terms_and_internals(self):
         out = sanitize_answer(
             "I couldn't find that in our knowledge base. I called search_support_records on "
-            "projects/p/locations/global/collections/default_collection/dataStores/ds-v2."
+            "projects/p/locations/global/collections/default_collection/dataStores/ds-v2 "
+            "and checked Cloud SQL on Cloud Run via Agent Platform."
         )
         assert_clean(self, out)
         self.assertIn("our support resources", out)
