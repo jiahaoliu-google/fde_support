@@ -40,6 +40,8 @@ class TestSanitizeAnswer(unittest.TestCase):
                 "Here are a few things you can try.",
             "Based on our support records, here are a few things you can try to resolve the issue.":
                 "Here are a few things you can try to resolve the issue.",
+            "According to our records, the rebooking options were only for travel up to December 31st.":
+                "The rebooking options were only for travel up to December 31st.",
             "First, try restarting your iPhone (doc_id: twcs_236803).":
                 "First, try restarting your iPhone.",
         }

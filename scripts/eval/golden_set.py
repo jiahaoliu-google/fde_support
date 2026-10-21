@@ -30,25 +30,41 @@ URGENT_KEYWORDS = [
     # Severe anger & dissatisfaction
     "worst", "unacceptable", "scam", "furious", "stolen", "terrible", "disaster",
     "frustrated", "ruined", "emergency", "broken", "never again", "horrible",
-    "disgusted", "outrageous", "disappointed", "pathetically", "appalling",
+    "disgusted", "outrageous", "disappointed", "pathetically", "pathetic", "appalling",
     "atrocious", "abysmal", "unbelievable", "ridiculous", "infuriating", "humiliated",
+    "awful", "useless", "incompetent", "unsubscribed", "annoying", "anoying",
+    "angry", "livid", "inconvenienced", "embarrassed", "a big shame", "shame",
+    "what the heck", "what the hell", "why the hell", "are you kidding me",
+    "get your game together", "unfortunate reply", "behave with customer",
+    "3rd time lucky", "second return", "outage again", "out half the day",
+    "pay so much", "charge 30 bucks", "so bad", "is a joke", "pay for your failures",
+    "eat plastic", "eating plastic", "undercooked", "hit me with the car",
+    "looks ugly", "you guys are down", "what's the use of it", "making me late everyday",
+    "every day there's an issue", "not going to do anything to make it right",
+    "haven't gotten a refund", "berate noisy passengers", "wants me to pay",
+    "tout est cassé", "photo de la cb", "randomly charged", "petit bout bois",
+    "drive miles down the road", "delivered the wrong item", "shifting the blame",
+    "time to switch to", "repulsing",
 
     # Financial & billing emergency
     "charged twice", "double charged", "overcharged", "unauthorized charge",
-    "stole my money", "thief", "thieves", "refund immediately", "money back",
+    "stole my money", "stealing", "thief", "thieves", "refund immediately", "money back",
 
-    # Legal & regulatory escalation
-    "cancel my account", "lawsuit", "sue", "suing", "report to bbb", "ftc complaint",
-    "legal action", "calling police", "fraud", "fraudulent",
+    # Legal & regulatory escalation / churn threats
+    "cancel my account", "cancel svc", "cancel service", "canceling his account",
+    "cancelling his account", "canceling my account", "cancelling my account",
+    "close an account", "close my account", "lawsuit", "sue", "suing",
+    "report to bbb", "ftc complaint", "legal action", "calling police",
+    "fraud", "fraudulent",
 
     # Severe service / delivery failure
     "lost package", "damaged product", "damaged on arrival", "never arrived",
     "delayed for weeks", "no response for days", "ignored my messages",
-    "bribe", "demanding money",
+    "bribe", "demanding money", "falsely claims", "no action on my complaint",
 
     # Profanity / hostile tone: never a neutral ticket
     "fuck", "fucking", "fucked", "shit", "shitty", "wtf", "tf", "bullshit", "crap",
-    "damn", "pissed"
+    "damn", "pissed", "smfh", "nigga", "bloody service"
 ]
 
 # Whole-word / whole-phrase patterns. Plain substring matching produced false
@@ -58,17 +74,27 @@ URGENT_PATTERNS = [
     (kw, re.compile(r"\b" + r"\s+".join(map(re.escape, kw.split())) + r"\b", re.IGNORECASE))
     for kw in URGENT_KEYWORDS
 ]
+_URGENT_EMOJI_RE = re.compile(r"[😡😠🤬]")
+_FALSE_POSITIVE_URGENT_RE = re.compile(
+    r"\b(has the best|broken down train)\b", re.IGNORECASE
+)
 
 
 def match_urgent_keywords(text: str) -> List[str]:
     """Returns every urgent keyword that appears in `text` as a whole word/phrase."""
-    return [kw for kw, pattern in URGENT_PATTERNS if pattern.search(text)]
+    if _FALSE_POSITIVE_URGENT_RE.search(text):
+        return []
+    matched = [kw for kw, pattern in URGENT_PATTERNS if pattern.search(text)]
+    if _URGENT_EMOJI_RE.search(text):
+        matched.append("angry_emoji")
+    return matched
 
 
 def clean_text(text: str) -> str:
-    """Decodes HTML entities, removes twitter handles/URLs and redundant whitespace."""
+    """Decodes HTML entities, normalizes quotes, removes twitter handles/URLs and redundant whitespace."""
     text = html.unescape(text)
-    text = re.sub(r'@[A-Za-z0-9_]+', '', text)
+    text = text.replace("\u2019", "'").replace("\u2018", "'")
+    text = re.sub(r'(?:^|(?<=\s)|(?<=[.,!?;:("\']))@[A-Za-z0-9_]+', '', text)
     text = re.sub(r'https?://\S+', '', text)
     text = re.sub(r'\s+', ' ', text).strip()
     return text
@@ -77,20 +103,54 @@ def clean_text(text: str) -> str:
 # Sentences that carry no factual content: greetings, apologies, thanks,
 # sign-offs and bare "DM us" redirects. They must not become key facts.
 _NON_FACTUAL_RE = re.compile(
-    r"^(hi|hey|hello|thanks|thank you|sorry|apolog\w*|we('re| are) sorry|we apologi[sz]e|"
-    r"please accept our apolog\w*|we understand|we hear you|that'?s not what we|"
-    r"we'?d like to help|we want to help|happy to help|glad to help|let us help|"
-    r"we('re| are) here to help|have a (great|good|nice)|just to confirm|"
-    r"(please )?(send|shoot|drop) us a (dm|direct message|pm)|(please )?dm us|"
-    r"(please )?reach out|follow us|sure,? we can help|let'?s (look|take a look|check)|"
-    r"we('ll| will) (follow up|be in touch|get back)|we look forward|"
-    r"(please )?let us know|(please )?(provide|share|send) us|keep us posted|"
-    r"we('d| would) be happy|we('re| are) (happy|glad)|hope this helps|"
-    r"we'?d love to|let'?s take care|i'?d (also )?like to log|please keep looking)\b"
-    r"|\b(in|via|through|over) (a )?(dm|direct message|pm)\b|\bdm (me|us)\b|\bfollow and dm\b",
+    r"^(hi|hey|hello|dear|good (morning|afternoon|evening)|greetings|thanks|thank you|"
+    r"muchas gracias|no problem|great question|you('re| are) welcome|aww\b|"
+    r"sorry|so sorry|really sorry|truly sorry|my apologies|our apologies|apolog\w*|"
+    r"i('m| am) (very |so |really |truly )?sorry|we('re| are) (very |so |really )?sorry|"
+    r"we apologi[sz]e|please accept our apolog\w*|"
+    r"(bonjour,?\s*)?je suis (sincèrement )?désolé|lamentamos o inconveniente|"
+    r"we understand|i understand|we hear you|that'?s not what we|"
+    r"we'?d like to (help|look in ?to|figure out|call|keep you)|"
+    r"i'?d (really |also )?(like|be happy) to (help|further assist|look into|log)|"
+    r"i would (really )?like to help|"
+    r"we want to help|happy to help|glad to help|let us help|"
+    r"we('re| are) here (to help|for you)|we can (definitely )?(assist|help|take a (closer )?look|double check)|"
+    r"have a (great|good|nice)|just to confirm|"
+    r"(please )?(send|shoot|drop) (us|me) a (dm|direct message|pm)|(please )?dm (us|me)|"
+    r"would you mind private messaging|"
+    r"(please )?reach out|(please )?follow us|sure,? we can help|let'?s (look|take a look|check)|"
+    r"we('ll| will) (follow up|be in touch|get back|see what we can|fix it|certainly take|look into|pass your|share|translate to the best|be happy)|"
+    r"our team (is working|will get in touch|will look into)|"
+    r"as you have shared the details|(however,?\s*)?i('ll| will) (look into|ensure to share)|"
+    r"we('re| are) looking into improving|we look forward|"
+    r"(please )?let (us|me) know|if you have any .* let (us|me) know|"
+    r"(please )?(provide|share|send|include|email|take a moment)|"
+    r"keep us posted|we('d| would) be happy|we('re| are) (happy|glad|so glad)|"
+    r"hope (this (helps|clears)|to see you)|we'?d love to|let'?s take care|please keep looking|"
+    r"we (always )?appreciate (your )?feedback|we've received your dm|i look forward to chatting|lamentamos|i see that you are trying to reach|"
+    r"this is a follow-up message|that('s| is) (a legit question|an odd place to be)|"
+    r"that shouldn't be happening|we take this very seriously|"
+    r"i know that each customer has a unique situation|i haven't heard from u|"
+    r"if you ever need anything else|check out our faq|i love this site|"
+    r"i will however have it for supper|surely, the situation will get better|"
+    r"please listen on the web|what is the exact issue|"
+    r"we may need you to reach out|we('re| are) very happy to hear|kindly drop in your details|"
+    r"we('re| are) just as excited|would help us answer|hate to hear|request you to reply|"
+    r"of course we care|we know that our|one of our agents will|we want you to enjoy|"
+    r"we have no information on that)\b"
+    r"|\b(in|via|through|over) (a )?(dm|direct message|pm)\b|\bdm (me|us|your)\b|\bfollow and dm\b|\bsend you a dm\b",
     re.IGNORECASE,
 )
-_LEADING_GREETING_RE = re.compile(r"^(hi|hey|hello)(\s+[A-Z][\w'-]*)?\s*[,!.-]*\s*", re.IGNORECASE)
+_LEADING_GREETING_RE = re.compile(
+    r"^(?:(?:hi|hey|hello|dear|good\s+(?:morning|afternoon|evening)|hola|bonjour(?:\s+à\s+vous)?|oi)\b"
+    r"(?:\s+there\b|\s+[A-Z][\w'-]*)?\s*[,!;.-]*\s*"
+    r"|(?:no\s+problem,?\s*(?:no,?\s*)?|no\s+worries!?\s*|great\s+question!?\s*|that's\s+correct,?\s*|-\(contd\)\s*))+",
+    re.IGNORECASE,
+)
+_TRAILING_SIGNOFF_RE = re.compile(
+    r"(?:\s*(?:\(\d/\d\)|\b\d/\d)\s*|\s*[\^/*~-]+\s*[A-Za-z]{1,12}(?:\s*\(\d/\d\))?\s*|\s+[A-Z]{2}\s*)$"
+)
+_TRAILING_VOCATIVE_RE = re.compile(r",\s+[A-Z][a-z]{2,15}$")
 _QUESTION_RE = re.compile(
     r"\?|^(how|what|when|where|why|which|who|can|could|does|do|is|are|will|would|should)\b",
     re.IGNORECASE,
@@ -100,20 +160,30 @@ _QUESTION_RE = re.compile(
 def extract_key_facts(reference_text: str) -> List[str]:
     """Extracts up to 3 *factual* key facts from the reference reply.
 
-    Leading greetings ("Hi Karine,") are stripped, and greeting/apology/thanks/
-    "DM us" sentences are dropped. Returns [] when nothing factual remains, which
-    means the record is not usable as a search-ready test case.
+    Leading greetings ("Hi Karine,") and trailing agent sign-offs ("^MM", "-Sara")
+    are stripped, and greeting/apology/thanks/"DM us" sentences are dropped.
+    Returns [] when nothing factual remains, which means the record is not usable
+    as a search-ready test case.
     """
-    raw = html.unescape(reference_text or "")
+    raw = html.unescape(reference_text or "").replace("\u2019", "'").replace("\u2018", "'")
     raw = re.sub(r"^(\s*@\w+)+", "", raw)  # leading reply handles are fine to drop
+    raw = _TRAILING_SIGNOFF_RE.sub("", raw.strip())
     facts = []
     for sentence in re.split(r"(?<=[.!?])\s+", raw):
-        if re.search(r"@\w+|https?://", sentence):
-            # Redirects to another account or a link: removing the handle/URL
+        if re.search(r"@\w+|https?://|__email__", sentence):
+            # Redirects to another account, email placeholder, or link: removing it
             # leaves a broken fragment, and the fact isn't answerable from text.
             continue
-        s = _LEADING_GREETING_RE.sub("", clean_text(sentence)).strip(" .!")
-        if s.endswith("?"):
+        s = clean_text(sentence)
+        s = _TRAILING_SIGNOFF_RE.sub("", s).strip(" .!")
+        if not s or s.startswith("..."):
+            continue
+        had_greeting = bool(_LEADING_GREETING_RE.match(s))
+        if not had_greeting and s[0].islower():
+            continue
+        s = _LEADING_GREETING_RE.sub("", s).strip(" .!")
+        s = _TRAILING_VOCATIVE_RE.sub("", s).strip(" .!")
+        if not s or s.endswith("?"):
             continue  # a question back to the customer is not a fact
         if len(s.split()) < 4 or _NON_FACTUAL_RE.search(s):
             continue
@@ -121,9 +191,24 @@ def extract_key_facts(reference_text: str) -> List[str]:
     return facts[:3]
 
 
-def is_answerable_question(question: str) -> bool:
-    """A neutral, search-ready ticket must actually ask something."""
-    return bool(_QUESTION_RE.search(question.strip()))
+def is_answerable_question(question: str, raw_question: str = "") -> bool:
+    """A neutral, search-ready ticket must actually ask a self-contained question."""
+    q = question.strip()
+    if not _QUESTION_RE.search(q):
+        return False
+    if q.startswith("...") or re.match(r"^(no\s+but|and\s+|but\s+|so\s+any\s+website)\b", q, re.I):
+        return False
+    if re.search(
+        r"\bbetween\s+and\b|\bdo you have this information\b|\bcan i have a sign too\b|"
+        r"\bnot allowed to do the food shop\b|\bwhere can i find that info\b|"
+        r"^will help you on this\b|integration for \?\?|in question is still dirty",
+        q,
+        re.I,
+    ):
+        return False
+    if "http" in raw_question and re.search(r"\b(what is this|how heavy this is|do with this)\b", q, re.I):
+        return False
+    return True
 
 
 def fact_rubrics(key_facts: List[str]) -> List[Dict[str, Any]]:
@@ -209,7 +294,7 @@ def build_golden_set() -> List[Dict[str, Any]]:
     answerable = []
     for item in normal_candidates:
         facts = extract_key_facts(item["raw_response"])
-        if facts and is_answerable_question(item["question"]):
+        if facts and is_answerable_question(item["question"], item["raw_question"]):
             item["key_facts"] = facts
             answerable.append(item)
     print(f"Found {len(answerable)} neutral, answerable records with factual key facts.")
@@ -267,7 +352,7 @@ def build_golden_set() -> List[Dict[str, Any]]:
             "expected_sentiment": "NEUTRAL_FACTUAL",
             "expected_route": "FAQ_AGENT",
             "search_ready": True,
-            "prompt": {"role": "user", "parts": [{"text": item["question"]}]},
+            "prompt": {"role": "user", "parts": [{"text": f"For {item['brand']}: {item['question']}"}]},
             "source_doc_ids": [item["doc_id"]],
             "source_customer_question": item["raw_question"],
             "reference": {"response": {"role": "model", "parts": [{"text": item["response"]}]}},

@@ -160,6 +160,62 @@ class TestCloudRunInvokerRules(unittest.TestCase):
     def test_token_not_verified_by_cloud_run_rejected(self):
         self.assertRejected(bearer(cloud_run_token(TESTER, signature="abc")))
 
+    def test_rs256_signed_service_account_invoker_token_accepted(self):
+        import datetime
+        from cryptography import x509
+        from cryptography.hazmat.primitives import hashes, serialization
+        from cryptography.hazmat.primitives.asymmetric import rsa
+        from cryptography.x509.oid import NameOID
+        from google.auth import jwt as google_jwt
+
+        key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "google-oidc")])
+        now_dt = datetime.datetime.now(datetime.timezone.utc)
+        cert = (
+            x509.CertificateBuilder()
+            .subject_name(name)
+            .issuer_name(name)
+            .public_key(key.public_key())
+            .serial_number(1)
+            .not_valid_before(now_dt)
+            .not_valid_after(now_dt + datetime.timedelta(days=1))
+            .sign(key, hashes.SHA256())
+        )
+        cert_pem = cert.public_bytes(serialization.Encoding.PEM).decode()
+        priv_pem = key.private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.PKCS8,
+            serialization.NoEncryption(),
+        ).decode()
+        signer = crypt.RSASigner.from_string(priv_pem, "rsa-kid-1")
+        claims = {
+            "iss": "https://accounts.google.com",
+            "aud": "https://backend.run.app",
+            "email": FRONTEND_SA,
+            "email_verified": True,
+            "exp": int(time.time()) + 600,
+            "sub": "1",
+        }
+        token = google_jwt.encode(signer, claims).decode()
+
+        async def fake_oidc_certs():
+            return {"rsa-kid-1": cert_pem}
+
+        resolver = CallerResolver(
+            iap_verifier=make_verifier(),
+            frontend_service_account=FRONTEND_SA,
+            allow_direct_callers=False,
+            trust_invoker_token=True,
+            oidc_certs_fetcher=fake_oidc_certs,
+        )
+        caller = asyncio.run(resolver.resolve({**bearer(token), FWD: make_assertion(ALICE)}))
+        self.assertEqual((caller.email, caller.source), (ALICE, "iap"))
+
+        # Corrupting the RS256 signature must be rejected.
+        bad_token = token[:-4] + ("AAAA" if token[-4:] != "AAAA" else "BBBB")
+        with self.assertRaises(CallerAuthError):
+            asyncio.run(resolver.resolve({**bearer(bad_token), FWD: make_assertion(ALICE)}))
+
     def test_unverified_email_rejected(self):
         self.assertRejected(bearer(cloud_run_token(TESTER, email_verified=False)))
 

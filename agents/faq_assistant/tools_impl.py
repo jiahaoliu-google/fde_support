@@ -199,15 +199,19 @@ def _truncate(value: Any) -> str:
 def search_support_records(query: str, top_k: int = DEFAULT_TOP_K) -> dict:
     """Searches the customer support knowledge base (historical support Q&A records).
 
-    Use this ONLY for policy, product, troubleshooting, shipping, returns, or other
-    factual support questions once the query is specific (core question + subject
-    context such as brand, product, or service). Do NOT use it for the status of a
+    Call this ONLY when the user's request is SEARCH-READY across the conversation:
+    it must include BOTH (1) a Subject / Entity Anchor (specific product, device,
+    item category, brand, app, service, or region) AND (2) a Specific Intent,
+    Symptom, or Policy Topic. If either element is missing (e.g. a generic
+    "how do I return?" or "I need help with my iPhone"), do NOT call this tool—ask
+    1 brief clarifying question first. Do NOT use this tool for the status of a
     specific order; use get_order_status for that.
 
     Args:
-        query: A specific, self-contained search query that combines the user's
-            question with context from the conversation, e.g.
-            "AirPods disconnecting from iPhone after iOS update".
+        query: A specific, self-contained search query that combines the subject
+            anchor and specific intent from the conversation history, e.g.
+            "AirPods disconnecting from iPhone after iOS update" or
+            "computer RAM return policy restocking fee".
         top_k: Number of records to return (1-10). Defaults to 5.
 
     Returns:

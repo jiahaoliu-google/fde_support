@@ -55,3 +55,34 @@ def _no_live_agent_session_cleanup(monkeypatch):
     from backend.clients import agent_runtime
 
     monkeypatch.setattr(agent_runtime, "delete_faq_session", AsyncMock(return_value=True))
+
+
+_GITIGNORED_METADATA_FILES = frozenset({
+    os.path.abspath(os.path.join(_WORKSPACE_ROOT, "agents", "faq_assistant", "deployment_metadata.json")),
+    os.path.abspath(os.path.join(_WORKSPACE_ROOT, "agents", "sentiment_router", "deployment_metadata.json")),
+})
+
+
+@pytest.fixture(autouse=True)
+def _hide_gitignored_deployment_metadata(monkeypatch):
+    """Simulate a clean CI checkout by hiding gitignored deployment_metadata.json files.
+
+    Locally `agents/*/deployment_metadata.json` is left behind by `agents-cli deploy`,
+    whereas in GitHub Actions (`actions/checkout@v4`) those gitignored files do not exist.
+    Tests that exercise metadata fallback must point `_METADATA_FILE` at a temp fixture.
+    """
+    import builtins
+
+    real_open = builtins.open
+
+    def _guarded_open(file, *args, **kwargs):
+        try:
+            resolved = os.path.abspath(os.fspath(file))
+        except TypeError:
+            resolved = ""
+        if resolved in _GITIGNORED_METADATA_FILES:
+            raise FileNotFoundError(f"Gitignored in CI checkout: {resolved}")
+        return real_open(file, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "open", _guarded_open)
+

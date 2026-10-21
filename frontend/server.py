@@ -210,7 +210,7 @@ async def proxy_to_cloud_run(path: str, request: Request):
         forward_headers["Content-Type"] = request.headers.get("content-type")
             
     if token:
-        forward_headers["Authorization"] = f"Bearer {token}"
+        forward_headers["X-Serverless-Authorization"] = f"Bearer {token}"
     else:
         logger.warning(f"No ID token available for backend request to {target_url}")
         

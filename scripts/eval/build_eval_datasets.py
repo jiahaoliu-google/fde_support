@@ -22,7 +22,7 @@ import os
 import sys
 from collections import Counter
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 GOLDEN = os.path.join(ROOT, "tests", "eval", "golden", "golden_set_v1.json")
 OUT = os.path.join(ROOT, "tests", "eval", "datasets", "faq_rubric_dataset.json")
 

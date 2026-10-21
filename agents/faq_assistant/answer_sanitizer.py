@@ -54,8 +54,9 @@ _INTERNAL_TERMS = re.compile(
 
 # Terms that reveal the retrieval backend.
 _BACKEND_TERMS = (
-    r"(?:data\s*stores?|knowledge\s*base|support\s+records?|historical\s+(?:support\s+)?"
-    r"(?:records?|conversations?|tickets?|cases?|logs?|data)|past\s+support\s+(?:conversations?|tickets?|cases?)|"
+    r"(?:data\s*stores?|knowledge\s*base|support\s+records?|(?:our|the|my|internal|company)\s+records?|"
+    r"historical\s+(?:support\s+)?(?:records?|conversations?|tickets?|cases?|logs?|data)|"
+    r"past\s+support\s+(?:conversations?|tickets?|cases?)|"
     r"support\s+(?:logs?|tickets?|transcripts?|conversations?|history)|search\s+results?|"
     r"retrieved\s+(?:records?|documents?|results?)|documents?\s+(?:i|we)\s+(?:found|retrieved|have)|"
     r"(?:our|these)\s+(?:support\s+)?documents?|"

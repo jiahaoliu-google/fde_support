@@ -1,145 +1,207 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FDE Support Portal - Smart Router & Assistant</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Roboto:wght@400;500;700&display=swap"
+        rel="stylesheet">
     <style>
         :root {
-            --bg-gradient: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%);
-            --panel-bg: rgba(30, 41, 59, 0.75);
-            --panel-border: rgba(255, 255, 255, 0.12);
-            --accent-color: #6366f1;
-            --accent-hover: #4f46e5;
-            --user-msg-bg: #2563eb;
-            --agent-msg-bg: rgba(51, 65, 85, 0.85);
-            --text-primary: #f8fafc;
-            --text-secondary: #94a3b8;
-            --card-bg: rgba(15, 23, 42, 0.6);
-            --urgent-bg: rgba(239, 68, 68, 0.15);
-            --urgent-border: rgba(239, 68, 68, 0.4);
-            --neutral-bg: rgba(16, 185, 129, 0.15);
-            --neutral-border: rgba(16, 185, 129, 0.4);
-            --processing-bg: rgba(245, 158, 11, 0.15);
-            --processing-border: rgba(245, 158, 11, 0.4);
+            --google-blue: #1a73e8;
+            --google-blue-hover: #1557b0;
+            --google-blue-tonal: #e8f0fe;
+            --google-blue-text: #1967d2;
+            --google-red: #d93025;
+            --google-red-tonal: #fce8e6;
+            --google-red-border: #fad2cf;
+            --google-yellow: #f9ab00;
+            --google-yellow-tonal: #fef7e0;
+            --google-yellow-border: #feefc3;
+            --google-yellow-text: #b06000;
+            --google-green: #1e8e3e;
+            --google-green-tonal: #e6f4ea;
+            --google-green-border: #ceead6;
+            --bg-surface: #f8f9fa;
+            --panel-bg: #ffffff;
+            --panel-border: #dadce0;
+            --text-primary: #202124;
+            --text-secondary: #5f6368;
+            --card-bg: #f8f9fa;
+            --agent-msg-bg: #ffffff;
+            --user-msg-bg: #1a73e8;
         }
 
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Google Sans', 'Roboto', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
 
         body {
-            background: var(--bg-gradient);
+            background: var(--bg-surface);
             color: var(--text-primary);
             height: 100vh;
             display: flex;
             flex-direction: column;
             align-items: center;
-            padding: 20px;
+            padding: 16px 24px 20px;
             overflow: hidden;
         }
 
-        /* Custom Scrollbar */
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.4); border-radius: 4px; }
-        ::-webkit-scrollbar-thumb { background: rgba(99, 102, 241, 0.5); border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: rgba(99, 102, 241, 0.8); }
+        body::before {
+            content: "";
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg,
+                    #4285f4 0%, #4285f4 25%,
+                    #ea4335 25%, #ea4335 50%,
+                    #fbbc05 50%, #fbbc05 75%,
+                    #34a853 75%, #34a853 100%);
+            z-index: 100;
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #dadce0;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #bdc1c6;
+        }
 
         .header-bar {
             width: 100%;
-            max-width: 1280px;
+            max-width: 1320px;
             background: var(--panel-bg);
             border: 1px solid var(--panel-border);
-            border-radius: 16px;
-            padding: 14px 24px;
+            border-radius: 12px;
+            padding: 12px 20px;
             margin-bottom: 16px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            backdrop-filter: blur(12px);
+            box-shadow: 0 1px 2px rgba(60, 64, 67, 0.08);
             flex-shrink: 0;
             gap: 16px;
+            flex-wrap: wrap;
         }
 
-        .title-group h1 { font-size: 1.2rem; font-weight: 700; color: #ffffff; display: flex; align-items: center; gap: 8px; }
-        .title-group p { font-size: 0.8rem; color: var(--text-secondary); margin-top: 2px; }
+        .title-group h1 {
+            font-size: 1.15rem;
+            font-weight: 500;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            letter-spacing: -0.2px;
+        }
+
+        .google-g-dot {
+            display: inline-grid;
+            grid-template-columns: repeat(2, 6px);
+            gap: 2px;
+            margin-right: 2px;
+        }
+
+        .google-g-dot span {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+        }
+
+        .title-group p {
+            font-size: 0.78rem;
+            color: var(--text-secondary);
+            margin-top: 2px;
+        }
 
         .header-controls {
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 8px;
+            flex-wrap: wrap;
         }
 
-        .user-badge {
-            background: rgba(15, 23, 42, 0.8);
+        .user-badge,
+        .ticket-badge {
+            background: #f1f3f4;
             border: 1px solid var(--panel-border);
             padding: 6px 12px;
-            border-radius: 10px;
+            border-radius: 999px;
             font-size: 0.775rem;
-            font-weight: 600;
-            color: #c7d2fe;
+            font-weight: 500;
+            color: #3c4043;
             display: flex;
             align-items: center;
             gap: 6px;
         }
 
-        .ticket-badge {
-            background: rgba(15, 23, 42, 0.8);
-            border: 1px solid var(--panel-border);
-            padding: 6px 12px;
-            border-radius: 10px;
-            font-size: 0.775rem;
-            font-weight: 600;
-            color: #c7d2fe;
-        }
-
         .btn-resolve {
-            background: rgba(239, 68, 68, 0.2);
-            color: #fca5a5;
-            border: 1px solid rgba(239, 68, 68, 0.4);
-            padding: 8px 16px;
-            border-radius: 10px;
+            background: var(--google-red-tonal);
+            color: var(--google-red);
+            border: 1px solid var(--google-red-border);
+            padding: 7px 14px;
+            border-radius: 999px;
             font-size: 0.8rem;
-            font-weight: 600;
+            font-weight: 500;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: background 0.15s, box-shadow 0.15s;
         }
 
-        .btn-resolve:hover { background: rgba(239, 68, 68, 0.4); }
+        .btn-resolve:hover:not(:disabled) {
+            background: #f9d2ce;
+        }
 
         .btn-new-ticket {
-            background: rgba(16, 185, 129, 0.2);
-            color: #6ee7b7;
-            border: 1px solid rgba(16, 185, 129, 0.4);
-            padding: 8px 16px;
-            border-radius: 10px;
+            background: var(--google-green-tonal);
+            color: var(--google-green);
+            border: 1px solid var(--google-green-border);
+            padding: 7px 14px;
+            border-radius: 999px;
             font-size: 0.8rem;
-            font-weight: 600;
+            font-weight: 500;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: background 0.15s, box-shadow 0.15s;
         }
 
-        .btn-new-ticket:hover { background: rgba(16, 185, 129, 0.4); }
+        .btn-new-ticket:hover:not(:disabled) {
+            background: #ceead6;
+        }
 
         .btn-logout {
-            background: rgba(99, 102, 241, 0.2);
-            color: #c7d2fe;
-            border: 1px solid rgba(99, 102, 241, 0.4);
-            padding: 8px 16px;
-            border-radius: 10px;
+            background: #ffffff;
+            color: var(--google-blue);
+            border: 1px solid var(--panel-border);
+            padding: 7px 14px;
+            border-radius: 999px;
             font-size: 0.8rem;
-            font-weight: 600;
+            font-weight: 500;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: background 0.15s, border-color 0.15s;
             display: flex;
             align-items: center;
             gap: 6px;
         }
 
         .btn-logout:hover {
-            background: rgba(99, 102, 241, 0.4);
-            border-color: #818cf8;
-            color: #ffffff;
-            box-shadow: 0 0 12px rgba(99, 102, 241, 0.4);
+            background: var(--google-blue-tonal);
+            border-color: #d2e3fc;
         }
 
         .service-status {
@@ -147,29 +209,38 @@
             align-items: center;
             gap: 8px;
             padding: 6px 12px;
-            border-radius: 8px;
+            border-radius: 999px;
             font-size: 0.75rem;
-            font-weight: 600;
-            background: rgba(15, 23, 42, 0.8);
+            font-weight: 500;
+            color: #3c4043;
+            background: #f8f9fa;
             border: 1px solid var(--panel-border);
         }
 
-        .badge-dot { width: 8px; height: 8px; border-radius: 50%; background: #ef4444; }
-        .badge-dot.online { background: #10b981; box-shadow: 0 0 8px #10b981; }
+        .badge-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--google-red);
+        }
+
+        .badge-dot.online {
+            background: var(--google-green);
+            box-shadow: 0 0 0 3px rgba(30, 142, 62, 0.18);
+        }
 
         .app-container {
             width: 100%;
-            max-width: 1280px;
+            max-width: 1320px;
             flex: 1;
             min-height: 0;
             background: var(--panel-bg);
-            backdrop-filter: blur(16px);
             border: 1px solid var(--panel-border);
-            border-radius: 20px;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            border-radius: 16px;
+            box-shadow: 0 1px 3px rgba(60, 64, 67, 0.12), 0 4px 8px rgba(60, 64, 67, 0.06);
             overflow: hidden;
             display: grid;
-            grid-template-columns: 1fr 360px;
+            grid-template-columns: 1fr 340px;
         }
 
         .chat-section {
@@ -178,31 +249,40 @@
             border-right: 1px solid var(--panel-border);
             height: 100%;
             min-height: 0;
+            background: #ffffff;
         }
 
         .messages-container {
             flex: 1;
             min-height: 0;
-            padding: 24px;
+            padding: 24px 28px;
             overflow-y: auto;
             display: flex;
             flex-direction: column;
             align-items: flex-start;
-            gap: 20px;
+            gap: 16px;
             width: 100%;
+            background: #f8f9fa;
         }
 
         .message-bubble {
             display: flex;
             flex-direction: column;
             gap: 8px;
-            max-width: 85%;
-            animation: fadeIn 0.3s ease;
+            max-width: 82%;
+            animation: fadeIn 0.2s ease;
         }
 
         @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
+            from {
+                opacity: 0;
+                transform: translateY(6px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         .message-bubble.user {
@@ -217,18 +297,19 @@
             margin-right: auto !important;
             margin-left: 0 !important;
             text-align: left;
-            width: 85%;
+            width: 82%;
         }
 
         .user-text {
             background: var(--user-msg-bg);
             color: #ffffff;
-            padding: 14px 18px;
-            border-radius: 16px;
+            padding: 12px 18px;
+            border-radius: 18px;
             border-bottom-right-radius: 4px;
             font-size: 0.925rem;
             line-height: 1.5;
             text-align: left;
+            box-shadow: 0 1px 2px rgba(26, 115, 232, 0.25);
         }
 
         .agent-card {
@@ -236,25 +317,20 @@
             border: 1px solid var(--panel-border);
             border-radius: 16px;
             border-bottom-left-radius: 4px;
-            padding: 16px;
+            padding: 16px 18px;
             display: flex;
             flex-direction: column;
-            gap: 12px;
+            gap: 10px;
             text-align: left;
             align-items: flex-start;
             justify-content: flex-start;
             width: 100%;
+            box-shadow: 0 1px 2px rgba(60, 64, 67, 0.08);
         }
 
         .agent-card.interim {
-            border-color: rgba(245, 158, 11, 0.5);
-            background: rgba(30, 41, 59, 0.9);
-            animation: pulseCard 1.5s infinite alternate;
-        }
-
-        @keyframes pulseCard {
-            0% { box-shadow: 0 0 5px rgba(245, 158, 11, 0.2); }
-            100% { box-shadow: 0 0 18px rgba(245, 158, 11, 0.5); }
+            border-color: var(--google-yellow-border);
+            background: #fffdf5;
         }
 
         .routing-header {
@@ -264,128 +340,198 @@
             justify-content: flex-start;
             gap: 8px;
             padding-bottom: 10px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            border-bottom: 1px solid #f1f3f4;
             font-size: 0.75rem;
             width: 100%;
         }
 
         .badge-tag {
             padding: 4px 10px;
-            border-radius: 12px;
-            font-weight: 700;
-            letter-spacing: 0.3px;
+            border-radius: 999px;
+            font-weight: 600;
+            letter-spacing: 0.2px;
         }
 
-        .badge-tag.urgent { background: var(--urgent-bg); color: #fca5a5; border: 1px solid var(--urgent-border); }
-        .badge-tag.neutral { background: var(--neutral-bg); color: #6ee7b7; border: 1px solid var(--neutral-border); }
-        .badge-tag.processing { background: var(--processing-bg); color: #fcd34d; border: 1px solid var(--processing-border); }
-        .badge-tag.resolved { background: rgba(100, 116, 139, 0.2); color: #cbd5e1; border: 1px solid rgba(100, 116, 139, 0.5); }
+        .badge-tag.urgent {
+            background: var(--google-red-tonal);
+            color: var(--google-red);
+            border: 1px solid var(--google-red-border);
+        }
+
+        .badge-tag.neutral {
+            background: var(--google-green-tonal);
+            color: var(--google-green);
+            border: 1px solid var(--google-green-border);
+        }
+
+        .badge-tag.processing {
+            background: var(--google-yellow-tonal);
+            color: var(--google-yellow-text);
+            border: 1px solid var(--google-yellow-border);
+        }
+
+        .badge-tag.resolved {
+            background: #f1f3f4;
+            color: #5f6368;
+            border: 1px solid #dadce0;
+        }
 
         .route-tag {
-            background: rgba(99, 102, 241, 0.2);
-            color: #c7d2fe;
-            border: 1px solid rgba(99, 102, 241, 0.4);
+            background: var(--google-blue-tonal);
+            color: var(--google-blue-text);
+            border: 1px solid #d2e3fc;
             padding: 4px 10px;
-            border-radius: 12px;
-            font-weight: 600;
+            border-radius: 999px;
+            font-weight: 500;
         }
 
         .agent-answer {
             font-size: 0.925rem;
             line-height: 1.6;
-            color: #f8fafc;
-            white-space: pre-wrap;
+            color: var(--text-primary);
+            white-space: pre-line;
             text-align: left !important;
             width: 100%;
+        }
+
+        .agent-answer p {
+            margin: 0 0 8px 0;
+        }
+
+        .agent-answer ul {
+            margin: 4px 0 0 18px;
+            padding: 0;
+        }
+
+        .agent-answer li {
+            margin-bottom: 4px;
         }
 
         .metadata-box {
             display: flex;
             gap: 12px;
-            background: rgba(15, 23, 42, 0.5);
+            background: #f8f9fa;
+            border: 1px solid #e8eaed;
             padding: 8px 12px;
             border-radius: 8px;
-            font-size: 0.75rem;
+            font-size: 0.775rem;
             color: var(--text-secondary);
             width: 100%;
         }
 
         .input-area {
-            padding: 20px 24px;
+            padding: 16px 24px;
             border-top: 1px solid var(--panel-border);
             display: flex;
             gap: 12px;
             flex-shrink: 0;
-            background: rgba(15, 23, 42, 0.5);
+            background: #ffffff;
         }
 
         input[type="text"] {
             flex: 1;
-            background: rgba(15, 23, 42, 0.6);
-            border: 1px solid var(--panel-border);
-            border-radius: 12px;
-            padding: 14px 18px;
+            background: #f1f3f4;
+            border: 1px solid transparent;
+            border-radius: 999px;
+            padding: 12px 20px;
             color: var(--text-primary);
             font-size: 0.925rem;
             outline: none;
+            transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
         }
 
-        input[type="text"]:focus { border-color: var(--accent-color); }
-        input[type="text"]:disabled { background: rgba(15, 23, 42, 0.2); opacity: 0.5; cursor: not-allowed; }
+        input[type="text"]:focus {
+            background: #ffffff;
+            border-color: var(--google-blue);
+            box-shadow: 0 1px 4px rgba(26, 115, 232, 0.2);
+        }
 
-        button {
-            background: var(--accent-color);
-            color: white;
+        input[type="text"]:disabled {
+            background: #f1f3f4;
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        button#sendBtn {
+            background: var(--google-blue);
+            color: #ffffff;
             border: none;
-            border-radius: 12px;
+            border-radius: 999px;
             padding: 0 24px;
-            font-weight: 600;
+            font-size: 0.9rem;
+            font-weight: 500;
             cursor: pointer;
-            transition: background 0.2s;
+            transition: background 0.15s, box-shadow 0.15s;
         }
 
-        button:hover { background: var(--accent-hover); }
-        button:disabled { background: #475569; cursor: not-allowed; opacity: 0.6; }
+        button#sendBtn:hover:not(:disabled) {
+            background: var(--google-blue-hover);
+            box-shadow: 0 1px 3px rgba(26, 115, 232, 0.3);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
 
         .sidebar {
-            padding: 24px;
+            padding: 20px;
             display: flex;
             flex-direction: column;
             gap: 20px;
-            background: rgba(15, 23, 42, 0.4);
+            background: #ffffff;
             overflow-y: auto;
             min-height: 0;
         }
 
-        .sidebar h2 { font-size: 0.95rem; font-weight: 700; color: #c7d2fe; display: flex; align-items: center; gap: 8px; }
+        .sidebar h2 {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
 
         .trace-card {
             background: var(--card-bg);
             border: 1px solid var(--panel-border);
             border-radius: 12px;
-            padding: 14px;
-            font-size: 0.8rem;
-            line-height: 1.6;
+            padding: 14px 16px;
+            font-size: 0.82rem;
+            line-height: 1.7;
+            color: var(--text-primary);
         }
 
         .citation-item {
-            background: rgba(99, 102, 241, 0.15);
-            border: 1px solid rgba(99, 102, 241, 0.3);
+            background: var(--google-blue-tonal);
+            border: 1px solid #d2e3fc;
             padding: 10px 12px;
             border-radius: 10px;
             font-size: 0.8rem;
-            color: #a5b4fc;
-            word-break: break-all;
+            color: var(--google-blue-text);
+            word-break: break-word;
             margin-top: 8px;
         }
     </style>
 </head>
-<body>
 
+<body>
     <!-- Top Header Bar -->
     <div class="header-bar">
         <div class="title-group">
-            <h1>🛡️ FDE Support Portal</h1>
+            <h1>
+                <span class="google-g-dot" aria-hidden="true">
+                    <span style="background:#4285f4"></span>
+                    <span style="background:#ea4335"></span>
+                    <span style="background:#fbbc05"></span>
+                    <span style="background:#34a853"></span>
+                </span>
+                🛡️ FDE Support Portal
+            </h1>
             <p>Smart Ticket Router & Grounded Knowledge Assistant</p>
         </div>
 
@@ -394,7 +540,8 @@
             <span class="ticket-badge" id="ticketBadge">🎫 Ticket: Session Ready</span>
             <button class="btn-resolve" onclick="resolveTicket()" id="resolveBtn">Resolve Ticket</button>
             <button class="btn-new-ticket" onclick="startNewTicket()" id="newTicketBtn">+ Start New Ticket</button>
-            <button class="btn-logout" onclick="logoutSwitchUser()" id="logoutBtn" title="Clear IAP session and switch Google user">🚪 Sign Out / Switch User</button>
+            <button class="btn-logout" onclick="logoutSwitchUser()" id="logoutBtn"
+                title="Clear IAP session and switch Google user">🚪 Sign Out / Switch User</button>
         </div>
 
         <div class="service-status">
@@ -405,7 +552,6 @@
 
     <!-- Main App Container -->
     <div class="app-container">
-
         <!-- Chat Section -->
         <div class="chat-section">
             <div class="messages-container" id="messagesContainer">
@@ -415,18 +561,22 @@
                             <span class="badge-tag neutral">🟢 SYSTEM READY</span>
                             <span class="route-tag">Cloud SQL Session Active</span>
                         </div>
-                        <div class="agent-answer">
-                            Welcome! Submit any customer support inquiry below.
-                            
-• <b>Frustrated / Urgent Tickets</b> will be assigned directly to our Senior Human Queue.
-• <b>Factual Questions</b> will be answered right away by our support assistant.
+                        <div class="agent-answer" style="white-space: normal;">
+                            <p>Welcome! Submit any customer support inquiry below.</p>
+                            <ul>
+                                <li><b>Frustrated / Urgent Tickets</b> will be assigned directly to our Senior Human
+                                    Queue.</li>
+                                <li><b>Factual Questions</b> will be answered right away by our support assistant.</li>
+                            </ul>
                         </div>
                     </div>
                 </div>
             </div>
 
             <div class="input-area">
-                <input type="text" id="userInput" placeholder="Ask a question or paste a customer ticket (e.g. 'Where is my order #12345?')" onkeypress="handleKeyPress(event)">
+                <input type="text" id="userInput"
+                    placeholder="Ask a question or paste a customer ticket (e.g. 'Where is my order #12345?')"
+                    onkeypress="handleKeyPress(event)">
                 <button id="sendBtn" onclick="sendQuery()">Submit Ticket</button>
             </div>
         </div>
@@ -439,25 +589,25 @@
                     <div><b>1. Customer Session Active</b></div>
                     <div><b>2. Sentiment Evaluation</b></div>
                     <div><b>3. Status Tracking</b>:</div>
-                    <div style="padding-left: 10px; color: #6ee7b7;">• Neutral ➔ NEW / IN_PROGRESS</div>
-                    <div style="padding-left: 10px; color: #fca5a5;">• Angry ➔ ESCALATED</div>
-                    <div style="padding-left: 10px; color: #cbd5e1;">• Resolved ➔ RESOLVED</div>
+                    <div style="padding-left: 10px; color: var(--google-green);">• Neutral ➔ NEW / IN_PROGRESS</div>
+                    <div style="padding-left: 10px; color: var(--google-red);">• Angry ➔ ESCALATED</div>
+                    <div style="padding-left: 10px; color: var(--text-secondary);">• Resolved ➔ RESOLVED</div>
                 </div>
             </div>
 
             <div>
                 <h2>📌 Active Citation Sources</h2>
                 <div id="citationsList">
-                    <div style="color: var(--text-secondary); font-size: 0.8rem; font-style: italic;">
-                        Retrieved datastore citations will appear here for factual queries.
-                    </div>
+                    <div style="color: var(--text-secondary); font-size: 0.8rem; font-style: italic;">Retrieved
+                        datastore citations will appear here for factual queries.</div>
                 </div>
             </div>
         </div>
+    </div>
 
     <script>
         const BACKEND_URL = '';
-        
+
         let currentCustomerId = '';
         // Ticket IDs are generated server-side (POST /api/tickets/create); identity comes from IAP.
         let currentSessionId = null;
@@ -571,9 +721,7 @@
                     <div class="routing-header">
                         <span class="badge-tag processing">⚡ Processing your request...</span>
                     </div>
-                    <div class="agent-answer" style="color: #fcd34d; font-style: italic; text-align: left;">
-                        Our assistant is looking into this and composing a response...
-                    </div>
+                    <div class="agent-answer" style="color: var(--google-yellow-text); font-style: italic; white-space: normal;">Our assistant is looking into this and composing a response...</div>
                 </div>
             `;
             container.appendChild(interimBubble);
@@ -599,6 +747,10 @@
                     alert(data.detail);
                     disableChat();
                     return;
+                }
+
+                if (!res.ok) {
+                    throw new Error(data.detail || data.error || `HTTP ${res.status}`);
                 }
 
                 if (data.ticket_id) {
@@ -636,14 +788,14 @@
                         if (parsed && parsed.answer) {
                             answerText = parsed.answer;
                         }
-                    } catch(e) {}
+                    } catch (e) { }
                 }
 
                 agentBubble.innerHTML = `
                     <div class="agent-card">
                         <div class="routing-header">
                             <span class="${sentimentBadgeClass}">${sentimentLabel}</span>
-                            <span class="route-tag">➔ Status: ${data.ticket_status || 'NEW'} | Routed To: ${escapeHtml(data.routed_to)}</span>
+                            <span class="route-tag">➔ Status: ${escapeHtml(data.ticket_status || 'NEW')} | Routed To: ${escapeHtml(data.routed_to)}</span>
                         </div>
                         ${entityStr ? `<div class="metadata-box">📌 Extracted Metadata: ${escapeHtml(entityStr)}</div>` : ''}
                         <div class="agent-answer">${escapeHtml(answerText)}</div>
@@ -676,11 +828,16 @@
                 }
                 const errBubble = document.createElement('div');
                 errBubble.className = 'message-bubble agent';
-                errBubble.innerHTML = `
-                    <div class="agent-card" style="border-color: #ef4444;">
-                        <div class="agent-answer" style="color: #fca5a5;">Error communicating with Smart Router Backend.</div>
-                    </div>
-                `;
+                const errCard = document.createElement('div');
+                errCard.className = 'agent-card';
+                errCard.style.borderColor = 'var(--google-red-border)';
+                const errAnswer = document.createElement('div');
+                errAnswer.className = 'agent-answer';
+                errAnswer.style.color = 'var(--google-red)';
+                const errDetail = err && err.message ? ` (${err.message})` : '';
+                errAnswer.textContent = `Error communicating with Smart Router Backend${errDetail}.`;
+                errCard.appendChild(errAnswer);
+                errBubble.appendChild(errCard);
                 container.appendChild(errBubble);
             } finally {
                 container.scrollTop = container.scrollHeight;
@@ -694,7 +851,7 @@
                     method: 'POST'
                 });
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                
+
                 disableChat();
                 updateTicketBadge('RESOLVED');
 
@@ -702,13 +859,11 @@
                 const sysBubble = document.createElement('div');
                 sysBubble.className = 'message-bubble agent';
                 sysBubble.innerHTML = `
-                    <div class="agent-card" style="border-color: #64748b;">
+                    <div class="agent-card">
                         <div class="routing-header">
                             <span class="badge-tag resolved">🔴 TICKET RESOLVED</span>
                         </div>
-                        <div class="agent-answer" style="color: #cbd5e1; font-style: italic;">
-                            This ticket has been marked as RESOLVED. Chat is closed. Click "+ Start New Ticket" to submit a new inquiry.
-                        </div>
+                        <div class="agent-answer" style="color: var(--text-secondary); font-style: italic; white-space: normal;">This ticket has been marked as RESOLVED. Chat is closed. Click "+ Start New Ticket" to submit a new inquiry.</div>
                     </div>
                 `;
                 container.appendChild(sysBubble);
@@ -747,20 +902,19 @@
                             <span class="badge-tag neutral">🟢 NEW TICKET READY</span>
                             <span class="route-tag">Clean Session Active</span>
                         </div>
-                        <div class="agent-answer">
-                            Welcome! Fresh ticket session initialized for customer <b>${escapeHtml(currentCustomerId)}</b>.
-                            
-• <b>Frustrated / Urgent Tickets</b> will be assigned directly to our Senior Human Queue.
-• <b>Factual Questions</b> will be answered right away by our support assistant.
+                        <div class="agent-answer" style="white-space: normal;">
+                            <p>Welcome! Fresh ticket session initialized for customer <b>${escapeHtml(currentCustomerId)}</b>.</p>
+                            <ul>
+                                <li><b>Frustrated / Urgent Tickets</b> will be assigned directly to our Senior Human Queue.</li>
+                                <li><b>Factual Questions</b> will be answered right away by our support assistant.</li>
+                            </ul>
                         </div>
                     </div>
                 </div>
             `;
 
             document.getElementById('citationsList').innerHTML = `
-                <div style="color: var(--text-secondary); font-size: 0.8rem; font-style: italic;">
-                    Retrieved datastore citations will appear here for factual queries.
-                </div>
+                <div style="color: var(--text-secondary); font-size: 0.8rem; font-style: italic;">Retrieved datastore citations will appear here for factual queries.</div>
             `;
 
             updateTicketBadge('NEW');
@@ -768,4 +922,5 @@
         }
     </script>
 </body>
+
 </html>

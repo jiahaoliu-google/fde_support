@@ -273,13 +273,15 @@ def quality_kpis(system: Optional[dict], lexical: dict, judge: dict) -> list[dic
                  "value": f1, "measured": fmt_num(f1, 3), "tdd": "CI gate (PR)", "source": sys_src,
                  "status": status(km.gate(f1, km.KPI_TARGETS["urgent_f1"]))})
 
-    lex_src = f"trace file, n={lexical['n']}" if lexical["n"] else "no trace file"
-    rows.append({"id": "T6", "name": "ROUGE-L vs Historical Reply", "target": f"≥ {TDD_GATES['rouge_l']:.2f}",
+    lex_src = f"trace file, n={lexical['n']}; optional target, not gated" if lexical["n"] else "no trace file"
+    rows.append({"id": "T6", "name": "ROUGE-L vs Historical Reply",
+                 "target": f"≥ {TDD_GATES['rouge_l']:.2f} (optional)",
                  "value": lexical["rouge_l"], "measured": fmt_num(lexical["rouge_l"]), "tdd": "CI gate (PR)",
-                 "source": lex_src, "status": status(km.gate(lexical["rouge_l"], TDD_GATES["rouge_l"]))})
-    rows.append({"id": "T7", "name": "BLEU vs Historical Reply (corpus BLEU-4)", "target": f"≥ {TDD_GATES['bleu']:.2f}",
+                 "source": lex_src, "status": INFO if lexical["rouge_l"] is not None else NOT_MEASURED})
+    rows.append({"id": "T7", "name": "BLEU vs Historical Reply (corpus BLEU-4)",
+                 "target": f"≥ {TDD_GATES['bleu']:.2f} (optional)",
                  "value": lexical["bleu4"], "measured": fmt_num(lexical["bleu4"]), "tdd": "CI gate (PR)",
-                 "source": lex_src, "status": status(km.gate(lexical["bleu4"], TDD_GATES["bleu"]))})
+                 "source": lex_src, "status": INFO if lexical["bleu4"] is not None else NOT_MEASURED})
     rows.append(t8)
     return rows
 

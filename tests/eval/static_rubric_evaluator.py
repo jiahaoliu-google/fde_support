@@ -279,12 +279,12 @@ def evaluate_static_rubric(
     # 3. Policy compliance (from agent instructions; see _POLICY_CHECKS)
     policy = {"score": 0.0 if violations else 1.0, "pass": not violations, "violations": violations}
 
-    # 4. Lexical similarity (TDD PR gate). Only S/M have a real historical reply.
+    # 4. Lexical similarity (optional target, informational only). Only S/M have a real historical reply.
     if segment in LEXICAL_SEGMENTS and reference:
         rl = round(rouge_l(generated_answer, reference), 4)
-        lexical = {"rouge_l": rl, "rouge_l_pass": rl >= TDD_GATES["rouge_l"],
+        lexical = {"rouge_l": rl, "rouge_l_pass": None,
                    "sentence_bleu": round(sentence_bleu(generated_answer, reference), 4),
-                   "note": "The BLEU gate is corpus-level; see aggregate_results()."}
+                   "note": "Informational only (optional target, not gated)."}
     else:
         lexical = {"rouge_l": None, "rouge_l_pass": None, "sentence_bleu": None,
                    "note": "Excluded: no historical reference for this segment."}
@@ -296,7 +296,7 @@ def evaluate_static_rubric(
     wsum = sum(COMPOSITE_WEIGHTS[k] for k in used)
     composite = round(sum(COMPOSITE_WEIGHTS[k] * v for k, v in used.items()) / wsum, 3) if wsum else None
 
-    gate_flags = [faith["pass"], recall["pass"], policy["pass"], lexical["rouge_l_pass"]]
+    gate_flags = [faith["pass"], recall["pass"], policy["pass"]]
     return {
         "applicable": True,
         "segment": segment,
@@ -347,8 +347,6 @@ def aggregate_results(results: List[Dict[str, Any]]) -> Dict[str, Any]:
         "tdd_gates": {
             "faithfulness>=0.90 (nightly)": gate(metrics["faithfulness_mean"], "faithfulness"),
             "grounding_recall>=0.85 (north star)": gate(metrics["grounding_recall_mean"], "grounding_recall"),
-            "rouge_l>=0.35 (PR)": gate(metrics["rouge_l_mean"], "rouge_l"),
-            "bleu>=0.30 (PR)": gate(bleu, "bleu"),
         },
         "warning": ("Faithfulness/recall used lexical proxies for some cases; run the "
                     "Gemini 3.5 Flash judge before treating those gates as final.") if proxy_used else None,

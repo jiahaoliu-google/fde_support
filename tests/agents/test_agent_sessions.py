@@ -71,8 +71,26 @@ class _CleanEnv(unittest.TestCase):
 # ---------------------------------------------------------------------------
 class TestFaqSessionStore(_CleanEnv):
     def setUp(self):
+        import tempfile
+
         super().setUp()
         self.svc = _load("faq_services_under_test", "agents/faq_assistant/app_utils/services.py")
+        # deployment_metadata.json is generated at deploy time and gitignored (commit 454aaf8),
+        # so provide a synthetic fixture file to exercise metadata resolution in CI.
+        self._meta_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self._meta_dir.cleanup)
+        self._meta_path = os.path.join(self._meta_dir.name, "deployment_metadata.json")
+        with open(self._meta_path, "w", encoding="utf-8") as f:
+            json.dump(
+                {
+                    "remote_agent_runtime_id": (
+                        "projects/883790454740/locations/us-central1/"
+                        "reasoningEngines/6767283237606653952"
+                    )
+                },
+                f,
+            )
+        self.svc._METADATA_FILE = self._meta_path
 
     def test_local_dev_falls_back_to_memory(self):
         from google.adk.sessions import InMemorySessionService
@@ -118,6 +136,9 @@ class TestFaqSessionStore(_CleanEnv):
         self.assertEqual(source, "deployment_metadata.json")
         self.assertTrue(engine_id.isdigit())
         self.assertEqual(location, "us-central1")
+        # When deployment_metadata.json is absent, falls back cleanly to no engine ID.
+        self.svc._METADATA_FILE = os.path.join(self._meta_dir.name, "missing.json")
+        self.assertEqual(self.svc.resolve_agent_engine(), (None, None, "no engine id configured"))
 
     def test_fails_closed_when_durable_required_and_no_engine(self):
         os.environ["REQUIRE_DURABLE_SESSIONS"] = "true"
