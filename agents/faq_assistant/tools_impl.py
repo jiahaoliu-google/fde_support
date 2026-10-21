@@ -153,8 +153,11 @@ def _log_auth_mode_once(mtls: bool, endpoint: str) -> None:
     )
 
 
+_search_client_cache: dict[tuple, discoveryengine.SearchServiceClient] = {}
+
+
 def _get_search_client() -> discoveryengine.SearchServiceClient:
-    """Creates a fresh Discovery Engine search client for one request.
+    """Returns a cached Discovery Engine search client matching the current auth mode.
 
     - Agent Identity runtime: mTLS endpoint + workload cert, REST transport. The REST
       transport's AuthorizedSession also recovers from a 401 caused by certificate
@@ -163,18 +166,34 @@ def _get_search_client() -> discoveryengine.SearchServiceClient:
 
     Credentials are resolved lazily by the client via ADC, so the (possibly
     certificate-bound) token always matches the certificate the mTLS channel presents.
+    Caching by (client_cls, cert_paths, env_opt_out, cert_config, project_id) avoids
+    repeating ADC resolution and gRPC/TLS channel setup (~0.8-1.2s) on every search call.
     """
     cert_paths = _resolve_mtls_cert_paths()
+    cache_key = (
+        discoveryengine.SearchServiceClient,
+        cert_paths,
+        os.environ.get(_USE_CLIENT_CERT_ENV),
+        os.environ.get(_CERT_CONFIG_ENV),
+        PROJECT_ID,
+    )
+    cached = _search_client_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     if cert_paths:
         _log_auth_mode_once(True, MTLS_ENDPOINT)
         # quota_project_id is intentionally not set: the REST transport ignores it, and
         # agent identities bill to their own project.
         options = ClientOptions(api_endpoint=MTLS_ENDPOINT, client_cert_source=_make_cert_source(*cert_paths))
-        return discoveryengine.SearchServiceClient(client_options=options, transport="rest")
+        client = discoveryengine.SearchServiceClient(client_options=options, transport="rest")
+    else:
+        _log_auth_mode_once(False, DEFAULT_ENDPOINT)
+        options = ClientOptions(quota_project_id=PROJECT_ID) if PROJECT_ID else None
+        client = discoveryengine.SearchServiceClient(client_options=options)
 
-    _log_auth_mode_once(False, DEFAULT_ENDPOINT)
-    options = ClientOptions(quota_project_id=PROJECT_ID) if PROJECT_ID else None
-    return discoveryengine.SearchServiceClient(client_options=options)
+    _search_client_cache[cache_key] = client
+    return client
 
 
 def _to_record(result: Any) -> dict:

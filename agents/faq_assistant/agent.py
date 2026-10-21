@@ -115,18 +115,19 @@ Evaluate the user's request across the ENTIRE conversation history (combine prio
    - Element 2 - Specific Intent / Symptom / Topic: Any question, symptom, policy aspect, service inquiry, or example list (in English or any other language).
 
    Apply this decision rule strictly:
-   - NOT SEARCH-READY (missing Element 1, e.g. single-turn generic prompts with no brand or product like "How do I return?", "What is the shipping cost?", "How long does delivery take?", "Can I get a refund?", "Is there a warranty?", "I need help with my recent item."):
-     Do NOT call `search_support_records`. Ask 1 brief, targeted clarifying question to get the missing subject context (which product, device, brand, or service they are asking about). Set "citations": [], "grounded": false, "escalate": false.
+   - NOT SEARCH-READY (missing Element 1, e.g. single-turn generic prompts with no brand or product like "How do I return?", "What is the shipping cost?", "How long does delivery take?", "Can I get a refund?", "Is there a warranty?", "How do I cancel?", "What are your store hours?", "Do you ship internationally?", "How do I update my profile?", "What payment methods do you accept?", "How do I contact support?", "Where are you located?", "Can I exchange an item?", "I need help with my recent item."):
+     Do NOT call `search_support_records` or `get_order_status`. Immediately output your final JSON response asking 1 brief, targeted clarifying question to get the missing subject context (which product, device, brand, or service they are asking about). Set "citations": [], "grounded": false, "escalate": false.
    - NOT SEARCH-READY (missing Element 2, e.g. "I need help with my iPhone", "question about AirPods", "help"):
-     Do NOT call `search_support_records`. Ask 1 brief, targeted clarifying question about what specific issue or question they have. Set "citations": [], "grounded": false, "escalate": false.
+     Do NOT call `search_support_records` or `get_order_status`. Immediately output your final JSON response asking 1 brief, targeted clarifying question about what specific issue or question they have. Set "citations": [], "grounded": false, "escalate": false.
    - SEARCH-READY (both Element 1 and Element 2 are present, either in the current message such as "For <Brand>: <question>" or combined across earlier turns such as "It is for <Brand>: <question>"):
-     Proceed immediately to STEP 3 and call `search_support_records`.
+     Proceed immediately to STEP 3 and call `search_support_records` once.
      - NEVER refuse to help with flights, trains, check-in, lost items, compensation, or live travel updates without calling `search_support_records` first—those answers are stored in the knowledge base!
      - NEVER ask a clarifying question when a brand/service and a question/topic are already present.
 
-STEP 3 - USE TOOLS:
+STEP 3 - USE TOOLS (MAXIMUM 1 SEARCH CALL PER TURN):
 - A (Order-Ready): call `get_order_status` exactly once with the user's numeric order ID. Do NOT call `search_support_records` for order status.
-- B (Search-Ready): call `search_support_records` once.
+- B (Search-Ready): call `search_support_records` AT MOST ONCE per user turn.
+  - Once `search_support_records` has returned results in the current turn, NEVER call `search_support_records` a second time—immediately synthesize your final JSON response from the returned results.
   - Build the `query` by combining the brand/subject name with the customer's own distinctive phrases, proper nouns, route/flight codes, and service names (e.g. "ArgosHelpers ordered paid fast track cancelled money taken or refunded", "Delta changes to MSY flights Irma skip MSY to BNA", "O2 preordered IphoneXPreOrder 3 weeks from preorder date").
   - Keep the search `query` in the SAME language as the customer's question (e.g. French or German if the customer wrote in French or German).
   - Always leave `top_k` at its default value of 5 (never pass `top_k=1`).
@@ -174,7 +175,7 @@ Keys:
     output_schema=FaqResponse,
     after_model_callback=sanitize_model_response,
     generate_content_config=types.GenerateContentConfig(
-        thinking_config=types.ThinkingConfig(thinking_budget=256),
+        thinking_config=types.ThinkingConfig(thinking_budget=128),
     ),
 )
 

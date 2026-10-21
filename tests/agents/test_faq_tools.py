@@ -215,6 +215,12 @@ class TestSearchClientAuthMode(unittest.TestCase):
         self.assertIsNone(getattr(self.client_cls.call_args.kwargs["client_options"], "api_endpoint", None))
         self.assertEqual(os.environ["GOOGLE_API_USE_CLIENT_CERTIFICATE"], "false")
 
+    def test_search_client_is_reused_across_calls(self):
+        c1 = tools._get_search_client()
+        c2 = tools._get_search_client()
+        self.assertIs(c1, c2)
+        self.assertEqual(self.client_cls.call_count, 1)
+
 
 class TestBackendParsing(unittest.TestCase):
 
