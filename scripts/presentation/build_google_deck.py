@@ -2,7 +2,7 @@
 style (white canvas, Google brand colours, Roboto, light Material cards). Imports cleanly into
 Google Slides (File > Import slides) and opens in PowerPoint / Keynote.
 
-    python scripts/build_google_deck.py            # requires python-pptx==1.0.2
+    python scripts/presentation/build_google_deck.py  # requires python-pptx==1.0.2
 
 Numbers and content come from build_cost_slide.py and build_llmops_slide.py.
 """
@@ -19,7 +19,7 @@ import build_cost_slide as cost
 import build_llmops_slide as ops
 from build_cost_slide import px, rgb, set_cell_borders
 
-OUT = Path(__file__).resolve().parent.parent / "docs" / "fde_support_deck_google.pptx"
+OUT = Path(__file__).resolve().parent.parent.parent / "docs" / "fde_support_deck_google.pptx"
 
 SANS, MONO = "Roboto", "Roboto Mono"
 G = {

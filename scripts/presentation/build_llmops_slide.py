@@ -1,7 +1,7 @@
 """Builds docs/llmops_slide.pptx: one editable 16:9 slide on LLMOps, the evaluation framework
 and observability. Reuses the drawing helpers and design tokens from build_cost_slide.py.
 
-    python scripts/build_llmops_slide.py            # requires python-pptx==1.0.2
+    python scripts/presentation/build_llmops_slide.py # requires python-pptx==1.0.2
 
 Content source: docs/EVALUATION_PLAN.md (KPIs, golden set, gates) and backend/ (OpenTelemetry,
 Model Armor, circuit breaker).
@@ -17,7 +17,7 @@ from pptx.util import Pt
 
 from build_cost_slide import C, MONO, SANS, background, fill_frame, px, rgb, set_cell_borders, shape, text
 
-OUT = Path(__file__).resolve().parent.parent / "docs" / "llmops_slide.pptx"
+OUT = Path(__file__).resolve().parent.parent.parent / "docs" / "llmops_slide.pptx"
 
 GOLDEN_SET = [  # (bucket, cases, colour, what it tests)
     ("Search-ready, in corpus", 45, "8B5CF6", "grounded answers"),

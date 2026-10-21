@@ -3,7 +3,7 @@
 Mirrors docs/cost_slide.html. Every number comes from COST_MODEL / the tables below, so update
 them here and re-run:
 
-    python scripts/build_cost_slide.py            # requires python-pptx==1.0.2
+    python scripts/presentation/build_cost_slide.py   # requires python-pptx==1.0.2
 
 Layout is authored on a 1920x1080 "px" grid (same as the HTML) and converted to EMU.
 """
@@ -18,7 +18,7 @@ from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
 from pptx.oxml.ns import qn
 from pptx.util import Emu, Pt
 
-OUT = Path(__file__).resolve().parent.parent / "docs" / "cost_slide.pptx"
+OUT = Path(__file__).resolve().parent.parent.parent / "docs" / "cost_slide.pptx"
 
 # --------------------------------------------------------------------------------------
 # Cost model (list prices, us-central1, Oct 2026). Modeled estimate, +/-40%.

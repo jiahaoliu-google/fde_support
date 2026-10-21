@@ -152,7 +152,7 @@ jobs:
         env:
           RUN_DIR: ${{ steps.infer.outputs.run_dir }}
         run: |
-          python scripts/generate_kpi_report.py \
+          python scripts/eval/generate_kpi_report.py \
             --run-dir "$RUN_DIR" \
             --out-dir "$RUN_DIR" \
             --pr-comment "$RUN_DIR/pr_comment.md" \
