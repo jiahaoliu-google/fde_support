@@ -18,7 +18,7 @@ import backend.main as main  # noqa: E402
 from backend.security.caller_identity import (  # noqa: E402
     CallerAuthError, CallerResolver, build_caller_resolver, invoker_email,
 )
-from iap_test_utils import (  # noqa: E402
+from tests.helpers.iap_test_utils import (  # noqa: E402
     FRONTEND_SA, TEST_KID, iap_headers, install_backend_test_resolver, make_assertion,
     make_key_pair, make_verifier,
 )

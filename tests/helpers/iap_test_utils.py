@@ -12,7 +12,7 @@ from google.auth import jwt as google_jwt
 
 from common.iap_auth import FORWARDED_IAP_ASSERTION_HEADER, IAP_ISSUER, IapVerifier
 
-import no_network  # noqa: F401  (blocks outbound network for every test using these helpers)
+from tests.helpers import no_network  # noqa: F401  (blocks outbound network for every test using these helpers)
 
 TEST_AUDIENCE = "/projects/123/global/backendServices/456"
 TEST_KID = "test-kid"

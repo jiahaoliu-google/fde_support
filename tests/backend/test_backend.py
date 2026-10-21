@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..",
 
 
 from backend.main import app
-from iap_test_utils import iap_headers  # noqa: E402
+from tests.helpers.iap_test_utils import iap_headers  # noqa: E402
 
 class TestDecoupledBackendAPI(unittest.TestCase):
 

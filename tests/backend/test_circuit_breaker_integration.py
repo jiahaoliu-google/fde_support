@@ -20,7 +20,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..",
 from backend.clients import agent_runtime  # noqa: E402
 from backend.main import app  # noqa: E402
 from backend.clients.agent_runtime import rag_circuit_breaker  # noqa: E402
-from iap_test_utils import iap_headers  # noqa: E402
+from tests.helpers.iap_test_utils import iap_headers  # noqa: E402
 from backend.core.circuit_breaker import CircuitState  # noqa: E402
 
 NEUTRAL = {"sentiment": "NEUTRAL_FACTUAL", "order_id": None, "product_name": None, "email": None}

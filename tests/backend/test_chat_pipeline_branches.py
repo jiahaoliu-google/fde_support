@@ -24,7 +24,7 @@ from backend.api.deps import get_caller  # noqa: E402
 from backend.clients import agent_runtime as AR  # noqa: E402
 from backend.services import chat as CHAT  # noqa: E402
 from backend.security import model_armor as MA  # noqa: E402
-from db_test_utils import TempDatabase  # noqa: E402
+from tests.helpers.db_test_utils import TempDatabase  # noqa: E402
 
 USER = "branches-user@example.com"
 FOLLOWUP_ACK = (

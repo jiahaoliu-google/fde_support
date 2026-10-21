@@ -17,7 +17,7 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, ROOT)
 
 
-import no_network  # noqa: F401,E402  (blocks outbound network)
+import tests.helpers.no_network  # noqa: F401,E402  (blocks outbound network)
 from agents.faq_assistant import tools  # noqa: E402
 from agents.faq_assistant.mock_orders import (  # noqa: E402
     MOCK_ORDERS,

@@ -20,7 +20,7 @@ from backend.clients import agent_runtime  # noqa: E402
 
 from backend.api import deps  # noqa: E402
 from backend.db.models import Ticket  # noqa: E402
-from db_test_utils import TempDatabase  # noqa: E402
+from tests.helpers.db_test_utils import TempDatabase  # noqa: E402
 
 USER = "txn-user@example.com"
 

@@ -33,7 +33,7 @@ from backend.clients import gcp_auth  # noqa: E402
 from backend.clients import stream_parsing  # noqa: E402
 from agents.faq_assistant import tools  # noqa: E402
 from backend.core.circuit_breaker import CircuitState  # noqa: E402
-from iap_test_utils import iap_headers  # noqa: E402
+from tests.helpers.iap_test_utils import iap_headers  # noqa: E402
 
 FAQ_URL = "https://example.test/v1/reasoningEngines/1:streamQuery"
 NEUTRAL = {"sentiment": "NEUTRAL_FACTUAL", "order_id": None, "product_name": None, "email": None}

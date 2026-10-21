@@ -7,14 +7,12 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-# Ensure repository root and test helpers sub-module are on sys.path
+# Ensure repository root is on sys.path
 _TESTS_DIR = os.path.dirname(__file__)
 _WORKSPACE_ROOT = os.path.abspath(os.path.join(_TESTS_DIR, ".."))
-_HELPERS_DIR = os.path.join(_TESTS_DIR, "helpers")
 
-for _path in (_WORKSPACE_ROOT, _HELPERS_DIR):
-    if _path not in sys.path:
-        sys.path.insert(0, _path)
+if _WORKSPACE_ROOT not in sys.path:
+    sys.path.insert(0, _WORKSPACE_ROOT)
 
 # The backend picks its database at import time (backend.db.session). Outside production,
 # with no DATABASE_URL, it fetches the Cloud SQL password via gcloud / Secret Manager and

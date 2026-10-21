@@ -24,7 +24,7 @@ from sqlalchemy.orm import sessionmaker
 from backend.db.session import get_db
 from backend.db.models import Base, Message, Ticket
 
-import no_network  # noqa: F401  (blocks outbound network for every test using these helpers)
+from tests.helpers import no_network  # noqa: F401  (blocks outbound network for every test using these helpers)
 
 
 class TempDatabase:

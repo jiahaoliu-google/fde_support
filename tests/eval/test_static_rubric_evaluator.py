@@ -9,13 +9,13 @@ import sys
 import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+REPO_ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
 sys.path.insert(0, HERE)
-sys.path.insert(0, os.path.join(HERE, "..", "..", "scripts", "eval"))
-sys.path.insert(0, os.path.join(HERE, "..", "..", "scripts"))
+sys.path.insert(0, REPO_ROOT)
 
 
 import static_rubric_evaluator as sre  # noqa: E402
-from golden_set import match_urgent_keywords  # noqa: E402
+from scripts.eval.golden_set import extract_key_facts, match_urgent_keywords  # noqa: E402
 
 
 def _case(segment="S", reference="", key_facts=None):
@@ -133,13 +133,11 @@ class TestRubricScope(unittest.TestCase):
 
 class TestKeyFacts(unittest.TestCase):
     def test_drops_greetings_and_apologies(self):
-        from golden_set import extract_key_facts
         facts = extract_key_facts("Hi Karine, sorry for the delay. Please accept our apologies. "
                                   "Hold the side button for 10 seconds to restart the phone. ^AB")
         self.assertEqual(facts, ["Hold the side button for 10 seconds to restart the phone"])
 
     def test_greeting_only_reply_has_no_facts(self):
-        from golden_set import extract_key_facts
         self.assertEqual(extract_key_facts("Hi there! Please DM us. Thanks!"), [])
 
 

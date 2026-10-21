@@ -26,7 +26,7 @@ from backend.clients import agent_runtime  # noqa: E402
 from backend.api import deps  # noqa: E402
 
 from backend.db import models  # noqa: E402
-from db_test_utils import TempDatabase, fail_sql, statements_like  # noqa: E402
+from tests.helpers.db_test_utils import TempDatabase, fail_sql, statements_like  # noqa: E402
 
 USER = "persistence-user@example.com"
 

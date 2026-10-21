@@ -21,7 +21,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 import backend.main as m  # noqa: E402
 from backend.api.deps import agent_user_id, get_caller  # noqa: E402
 from backend.clients import agent_runtime as AR  # noqa: E402
-from db_test_utils import TempDatabase  # noqa: E402
+from tests.helpers.db_test_utils import TempDatabase  # noqa: E402
 from tests.e2e import agent_harness as H  # noqa: E402
 
 # conftest.py replaces this with an AsyncMock for every test; keep the real one.

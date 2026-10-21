@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..",
 from backend.main import app as backend_app  # noqa: E402
 
 from backend.clients.agent_runtime import rag_circuit_breaker  # noqa: E402
-from iap_test_utils import iap_headers  # noqa: E402
+from tests.helpers.iap_test_utils import iap_headers  # noqa: E402
 from common.iap_auth import IapAuthError, IapVerifier, IAP_ISSUER  # noqa: E402
 
 ALICE = "alice@example.com"
