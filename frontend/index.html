@@ -184,6 +184,32 @@
             background: #ceead6;
         }
 
+        .session-select {
+            background: #f1f3f4;
+            color: #3c4043;
+            border: 1px solid var(--panel-border);
+            padding: 6px 12px;
+            border-radius: 999px;
+            font-size: 0.775rem;
+            font-weight: 500;
+            cursor: pointer;
+            max-width: 320px;
+            outline: none;
+            transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+        }
+
+        .session-select:hover,
+        .session-select:focus {
+            background: #ffffff;
+            border-color: var(--google-blue);
+            box-shadow: 0 1px 3px rgba(26, 115, 232, 0.15);
+        }
+
+        .session-select option:disabled {
+            color: #9aa0a6;
+            font-style: italic;
+        }
+
         .btn-logout {
             background: #ffffff;
             color: var(--google-blue);
@@ -537,7 +563,11 @@
 
         <div class="header-controls">
             <span class="user-badge" id="userBadge">👤 User: Authenticating...</span>
-            <span class="ticket-badge" id="ticketBadge">🎫 Ticket: Session Ready</span>
+            <select class="session-select" id="sessionSelect" onchange="selectPreviousSession(this.value)"
+                aria-label="Current ticket and previous sessions"
+                title="Current ticket session — click to switch to a previous session">
+                <option value="">🎫 Ticket #pending [NEW]</option>
+            </select>
             <button class="btn-resolve" onclick="resolveTicket()" id="resolveBtn">Resolve Ticket</button>
             <button class="btn-new-ticket" onclick="startNewTicket()" id="newTicketBtn">+ Start New Ticket</button>
             <button class="btn-logout" onclick="logoutSwitchUser()" id="logoutBtn"
@@ -611,6 +641,8 @@
         let currentCustomerId = '';
         // Ticket IDs are generated server-side (POST /api/tickets/create); identity comes from IAP.
         let currentSessionId = null;
+        let currentTicketStatus = 'NEW';
+        let cachedPreviousTickets = [];
         let isResolved = false;
 
         function escapeHtml(text) {
@@ -635,7 +667,13 @@
                 if (data.user_email) {
                     currentCustomerId = data.user_email;
                     document.getElementById('userBadge').textContent = `👤 User: ${currentCustomerId}`;
-                    createNewTicketInDB();
+                    const urlTicketId = new URLSearchParams(window.location.search).get('ticket_id');
+                    if (urlTicketId) {
+                        await loadTicketSession(urlTicketId);
+                    } else {
+                        await createNewTicketInDB();
+                    }
+                    await loadPreviousSessions();
                 }
             } catch (err) {
                 console.error("Failed to fetch user info");
@@ -661,14 +699,222 @@
             }
         }
 
+        function renderSessionSelect() {
+            const select = document.getElementById('sessionSelect');
+            if (!select) return;
+
+            const currentInList = Boolean(
+                currentSessionId && cachedPreviousTickets.some(t => t.id === currentSessionId)
+            );
+            const options = [];
+
+            if (!currentInList) {
+                const currentOpt = document.createElement('option');
+                currentOpt.value = currentSessionId || '';
+                const shortCurrent = currentSessionId ? `${String(currentSessionId).substring(0, 8)}...` : 'pending';
+                currentOpt.textContent = `🎫 Ticket #${shortCurrent} [${currentTicketStatus}]`;
+                currentOpt.selected = true;
+                options.push(currentOpt);
+            }
+
+            cachedPreviousTickets.forEach(t => {
+                const opt = document.createElement('option');
+                opt.value = t.id;
+                const isCurrent = Boolean(currentSessionId && t.id === currentSessionId);
+                const shortId = String(t.id || '').substring(0, 8);
+                const previewText = t.preview ? ` — ${t.preview}` : '';
+                const statusLabel = isCurrent ? (currentTicketStatus || t.current_status) : t.current_status;
+                if (t.session_expired || statusLabel === 'EXPIRED') {
+                    opt.disabled = true;
+                    opt.textContent = `🎫 Ticket #${shortId} [EXPIRED] (${t.current_status})${previewText}`;
+                } else {
+                    opt.textContent = `🎫 Ticket #${shortId} [${statusLabel}]${previewText}`;
+                }
+                if (isCurrent) {
+                    opt.selected = true;
+                }
+                options.push(opt);
+            });
+
+            select.replaceChildren(...options);
+        }
+
+        async function loadPreviousSessions() {
+            const select = document.getElementById('sessionSelect');
+            if (!select) return;
+            try {
+                const res = await fetch(`${BACKEND_URL}/api/tickets`);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+                cachedPreviousTickets = Array.isArray(data.tickets) ? data.tickets : [];
+                renderSessionSelect();
+            } catch (err) {
+                console.error("Failed to load previous sessions");
+            }
+        }
+
+        async function selectPreviousSession(ticketId) {
+            if (!ticketId || ticketId === currentSessionId) return;
+            const url = new URL(window.location.href);
+            url.searchParams.set('ticket_id', ticketId);
+            window.history.pushState({}, '', url);
+            await loadTicketSession(ticketId);
+            await loadPreviousSessions();
+        }
+
+        function resetCitationsSidebar() {
+            const citationsList = document.getElementById('citationsList');
+            if (!citationsList) return;
+            const placeholder = document.createElement('div');
+            placeholder.style.color = 'var(--text-secondary)';
+            placeholder.style.fontSize = '0.8rem';
+            placeholder.style.fontStyle = 'italic';
+            placeholder.textContent = 'Retrieved datastore citations will appear here for factual queries.';
+            citationsList.replaceChildren(placeholder);
+        }
+
+        function appendSystemNotice(badgeText, badgeClass, routeText, messageText) {
+            const container = document.getElementById('messagesContainer');
+            const bubble = document.createElement('div');
+            bubble.className = 'message-bubble agent';
+            const card = document.createElement('div');
+            card.className = 'agent-card';
+            const header = document.createElement('div');
+            header.className = 'routing-header';
+            const badge = document.createElement('span');
+            badge.className = badgeClass;
+            badge.textContent = badgeText;
+            header.appendChild(badge);
+            if (routeText) {
+                const route = document.createElement('span');
+                route.className = 'route-tag';
+                route.textContent = routeText;
+                header.appendChild(route);
+            }
+            const answer = document.createElement('div');
+            answer.className = 'agent-answer';
+            answer.style.whiteSpace = 'normal';
+            answer.textContent = messageText;
+            card.appendChild(header);
+            card.appendChild(answer);
+            bubble.appendChild(card);
+            container.appendChild(bubble);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function renderHistoricalMessage(msg, ticket) {
+            const container = document.getElementById('messagesContainer');
+            if (msg.sender === 'CUSTOMER') {
+                const userBubble = document.createElement('div');
+                userBubble.className = 'message-bubble user';
+                const userText = document.createElement('div');
+                userText.className = 'user-text';
+                userText.textContent = msg.message_text || '';
+                userBubble.appendChild(userText);
+                container.appendChild(userBubble);
+                return;
+            }
+
+            const agentBubble = document.createElement('div');
+            agentBubble.className = 'message-bubble agent';
+            const card = document.createElement('div');
+            card.className = 'agent-card';
+            const header = document.createElement('div');
+            header.className = 'routing-header';
+
+            const badge = document.createElement('span');
+            if (msg.sender === 'SYSTEM' && (msg.message_text || '').includes('RESOLVED')) {
+                badge.className = 'badge-tag resolved';
+                badge.textContent = '🔴 TICKET RESOLVED';
+            } else if (ticket.sentiment === 'URGENT_FRUSTRATED') {
+                badge.className = 'badge-tag urgent';
+                badge.textContent = '🚨 URGENT / FRUSTRATED';
+            } else {
+                badge.className = 'badge-tag neutral';
+                badge.textContent = '🟢 NEUTRAL / FACTUAL';
+            }
+            header.appendChild(badge);
+
+            const routeTag = document.createElement('span');
+            routeTag.className = 'route-tag';
+            const routedLabel = msg.sender === 'SYSTEM' ? 'System / Human Queue' : 'Automated RAG Assistant';
+            routeTag.textContent = `➔ Status: ${ticket.current_status || 'IN_PROGRESS'} | Routed To: ${routedLabel}`;
+            header.appendChild(routeTag);
+
+            const answerDiv = document.createElement('div');
+            answerDiv.className = 'agent-answer';
+            answerDiv.textContent = msg.message_text || '';
+
+            card.appendChild(header);
+            card.appendChild(answerDiv);
+            agentBubble.appendChild(card);
+            container.appendChild(agentBubble);
+        }
+
+        async function loadTicketSession(ticketId) {
+            const container = document.getElementById('messagesContainer');
+            try {
+                const res = await fetch(`${BACKEND_URL}/api/tickets/${encodeURIComponent(ticketId)}`);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+                const ticket = data.ticket;
+                const messages = Array.isArray(data.messages) ? data.messages : [];
+
+                if (!ticket) throw new Error('Ticket not found');
+
+                container.replaceChildren();
+                resetCitationsSidebar();
+
+                if (ticket.session_expired) {
+                    currentSessionId = ticket.id;
+                    updateTicketBadge('EXPIRED');
+                    disableChat();
+                    appendSystemNotice(
+                        '⚠️ SESSION EXPIRED',
+                        'badge-tag resolved',
+                        'Agent Platform Session Expired',
+                        `Session #${String(ticket.id).substring(0, 12)}... has expired in the Agent Platform and cannot be resumed. Click "+ Start New Ticket" to begin a new inquiry.`
+                    );
+                    messages.forEach(m => renderHistoricalMessage(m, ticket));
+                    container.scrollTop = container.scrollHeight;
+                    return;
+                }
+
+                currentSessionId = ticket.id;
+                updateTicketBadge(ticket.current_status || 'IN_PROGRESS');
+
+                appendSystemNotice(
+                    '🟢 SESSION RESTORED',
+                    'badge-tag neutral',
+                    `Restored Ticket #${String(ticket.id).substring(0, 8)} (${ticket.current_status})`,
+                    'Previous chat history and agent session context have been restored.'
+                );
+
+                messages.forEach(m => renderHistoricalMessage(m, ticket));
+
+                if (ticket.current_status === 'RESOLVED') {
+                    disableChat();
+                } else {
+                    isResolved = false;
+                    document.getElementById('userInput').disabled = false;
+                    document.getElementById('sendBtn').disabled = false;
+                    document.getElementById('resolveBtn').disabled = false;
+                }
+                container.scrollTop = container.scrollHeight;
+            } catch (err) {
+                console.error("Failed to load ticket session:", err);
+                await createNewTicketInDB();
+            }
+        }
+
         function initUI() {
             fetchUserInfo();
             updateTicketBadge();
         }
 
         function updateTicketBadge(status = 'NEW') {
-            const idLabel = currentSessionId ? `${currentSessionId.substring(0, 12)}...` : 'pending';
-            document.getElementById('ticketBadge').textContent = `🎫 Ticket #${idLabel} [${status}]`;
+            currentTicketStatus = status;
+            renderSessionSelect();
         }
 
         async function checkStatus() {
@@ -743,9 +989,17 @@
                     container.removeChild(interimBubble);
                 }
 
-                if (res.status === 400 && data.detail && data.detail.includes("RESOLVED")) {
-                    alert(data.detail);
+                if (res.status === 400 && data.detail && (data.detail.includes("RESOLVED") || data.detail.includes("expired"))) {
+                    const isExp = data.detail.includes("expired");
+                    appendSystemNotice(
+                        isExp ? '⚠️ SESSION EXPIRED' : '🔴 TICKET RESOLVED',
+                        'badge-tag resolved',
+                        isExp ? 'Agent Platform Session Expired' : 'Ticket Closed',
+                        data.detail
+                    );
+                    updateTicketBadge(isExp ? 'EXPIRED' : 'RESOLVED');
                     disableChat();
+                    await loadPreviousSessions();
                     return;
                 }
 
@@ -822,6 +1076,8 @@
                     citationsList.innerHTML = '<div style="color: var(--text-secondary); font-size: 0.8rem;">No citations.</div>';
                 }
 
+                await loadPreviousSessions();
+
             } catch (err) {
                 if (interimBubble.parentNode) {
                     container.removeChild(interimBubble);
@@ -868,9 +1124,10 @@
                 `;
                 container.appendChild(sysBubble);
                 container.scrollTop = container.scrollHeight;
+                await loadPreviousSessions();
 
             } catch (err) {
-                alert('Failed to resolve ticket: ' + err);
+                console.error('Failed to resolve ticket:', err);
             }
         }
 
@@ -886,9 +1143,17 @@
             window.location.href = "/_gcp_iap/clear_login_cookie";
         }
 
-        function startNewTicket() {
+        async function startNewTicket() {
             currentSessionId = null;
             isResolved = false;
+
+            const url = new URL(window.location.href);
+            if (url.searchParams.has('ticket_id')) {
+                url.searchParams.delete('ticket_id');
+                window.history.pushState({}, '', url);
+            }
+            const select = document.getElementById('sessionSelect');
+            if (select) select.value = '';
 
             document.getElementById('userInput').disabled = false;
             document.getElementById('sendBtn').disabled = false;
@@ -913,12 +1178,11 @@
                 </div>
             `;
 
-            document.getElementById('citationsList').innerHTML = `
-                <div style="color: var(--text-secondary); font-size: 0.8rem; font-style: italic;">Retrieved datastore citations will appear here for factual queries.</div>
-            `;
+            resetCitationsSidebar();
 
             updateTicketBadge('NEW');
-            createNewTicketInDB();
+            await createNewTicketInDB();
+            await loadPreviousSessions();
         }
     </script>
 </body>

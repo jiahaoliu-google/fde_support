@@ -39,6 +39,7 @@ class TestTicketOwnership(unittest.TestCase):
         self.ticket_id = self.alice.post("/api/tickets/create", json={}).json()["ticket_id"]
 
     def test_requests_without_identity_are_rejected(self):
+        self.assertEqual(self.anon.get("/api/tickets").status_code, 401)
         self.assertEqual(self.anon.post("/api/tickets/create", json={}).status_code, 401)
         self.assertEqual(self.anon.get(f"/api/tickets/{self.ticket_id}").status_code, 401)
         self.assertEqual(self.anon.post(f"/api/tickets/{self.ticket_id}/resolve").status_code, 401)
@@ -64,6 +65,22 @@ class TestTicketOwnership(unittest.TestCase):
 
     def test_other_user_cannot_read_ticket(self):
         self.assertEqual(self.bob.get(f"/api/tickets/{self.ticket_id}").status_code, 404)
+
+    @patch("backend.clients.agent_runtime.call_faq_agent")
+    @patch("backend.clients.agent_runtime.call_sentiment_agent")
+    def test_list_tickets_isolated_per_owner(self, mock_sentiment, mock_faq):
+        mock_sentiment.return_value = NEUTRAL
+        mock_faq.return_value = FAQ_OK
+        self.alice.post("/api/chat", json={"message": "Alice secret inquiry", "session_id": self.ticket_id})
+        bob_ticket = self.bob.post("/api/chat", json={"message": "Bob inquiry"}).json()["ticket_id"]
+
+        alice_ids = {t["id"] for t in self.alice.get("/api/tickets").json()["tickets"]}
+        bob_ids = {t["id"] for t in self.bob.get("/api/tickets").json()["tickets"]}
+
+        self.assertIn(self.ticket_id, alice_ids)
+        self.assertNotIn(bob_ticket, alice_ids)
+        self.assertIn(bob_ticket, bob_ids)
+        self.assertNotIn(self.ticket_id, bob_ids)
 
     def test_other_user_cannot_resolve_ticket(self):
         self.assertEqual(self.bob.post(f"/api/tickets/{self.ticket_id}/resolve").status_code, 404)

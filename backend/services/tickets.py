@@ -1,9 +1,11 @@
 """Ticket ownership checks and transactional writes of ticket turns."""
+from datetime import datetime, timezone
 import uuid
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
+from backend.clients import agent_runtime
 from backend.db.models import Message, Ticket
 
 def new_ticket_id() -> str:
@@ -44,6 +46,49 @@ TICKET_RESOLVED_DURING_REQUEST_DETAIL = (
     "This ticket was marked as RESOLVED while your message was being processed. "
     "Please click 'Start New Ticket' to submit new inquiries."
 )
+TICKET_EXPIRED_DETAIL = (
+    "This ticket session has expired in the Agent Platform. "
+    "Please click 'Start New Ticket' to submit new inquiries."
+)
+
+
+def is_ttl_expired(created_at: datetime | None) -> bool:
+    """Returns True when the ticket's creation timestamp is older than the FAQ session TTL."""
+    if created_at is None:
+        return False
+    created_utc = (
+        created_at.replace(tzinfo=timezone.utc)
+        if created_at.tzinfo is None
+        else created_at.astimezone(timezone.utc)
+    )
+    age_seconds = (datetime.now(timezone.utc) - created_utc).total_seconds()
+    return age_seconds >= agent_runtime.faq_session_ttl_seconds()
+
+
+def is_ticket_session_expired(
+    ticket_id: str,
+    current_status: str,
+    created_at: datetime | None,
+    active_sessions: set[str] | None,
+) -> bool:
+    """Determines whether a ticket's agent session is expired.
+
+    A session is considered expired if:
+    1. Its age exceeds the FAQ agent's session TTL (default 7 days, non-sliding creation TTL), OR
+    2. Its status is IN_PROGRESS (meaning an FAQ agent session was active) and the Agent
+       Platform's active session list was fetched (`active_sessions is not None`) but no
+       longer contains `t-<ticket_id>`.
+    """
+    if is_ttl_expired(created_at):
+        return True
+    if current_status == "IN_PROGRESS" and active_sessions is not None:
+        try:
+            sid = agent_runtime.agent_session_id(ticket_id)
+        except HTTPException:
+            return True
+        if sid not in active_sessions:
+            return True
+    return False
 
 def record_turn(db: Session, ticket_id: str, caller: str, sender: str, text: str, *, escalate: bool) -> str:
     """Appends one message and applies the status change in a single transaction.

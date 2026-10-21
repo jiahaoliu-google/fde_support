@@ -35,8 +35,9 @@ from backend.main import app as backend_app  # noqa: E402
 from backend.clients.agent_runtime import rag_circuit_breaker  # noqa: E402
 from tests.helpers.iap_test_utils import iap_headers  # noqa: E402
 
-# Keep a reference to the real function; setUp() stubs the module attribute for endpoint tests.
+# Keep references to the real functions; setUp() stubs the module attributes for endpoint tests.
 REAL_DELETE_FAQ_SESSION = agent_runtime.delete_faq_session
+REAL_LIST_FAQ_SESSIONS = agent_runtime.list_faq_sessions
 
 VERTEX_ID_RE = re.compile(r"^[a-z][a-z0-9-]{0,61}[a-z0-9]$")
 ALICE = "alice@example.com"
@@ -415,6 +416,9 @@ class _FakeResp:
         self.status_code = status_code
         self.text = text
 
+    def json(self):
+        return json.loads(self.text) if self.text else {}
+
 
 class _RecordingClient:
     """Minimal httpx.AsyncClient stand-in that records POSTs."""
@@ -448,6 +452,7 @@ class TestBackendAgentSessions(unittest.TestCase):
             patch.object(agent_runtime.httpx, "AsyncClient", _RecordingClient),
             patch.object(gcp_auth, "get_gcp_auth_headers", lambda: {}),
             patch.object(agent_runtime, "delete_faq_session", AsyncMock(return_value=True)),
+            patch.object(agent_runtime, "list_faq_sessions", AsyncMock(return_value=None)),
         ]
         for p in self.patches:
             p.start()
@@ -525,6 +530,110 @@ class TestBackendAgentSessions(unittest.TestCase):
         bob = TestClient(backend_app, headers=iap_headers("bob@example.com"))
         self.assertEqual(bob.post(f"/api/tickets/{ticket}/resolve").status_code, 404)
         agent_runtime.delete_faq_session.assert_not_awaited()
+
+    def test_list_faq_sessions_payload_and_parsing(self):
+        t1, t2 = str(uuid.uuid4()), str(uuid.uuid4())
+        _RecordingClient.response = _FakeResp(
+            200,
+            json.dumps({
+                "output": {
+                    "sessions": [
+                        {"id": f"t-{t1}"},
+                        {"name": f"projects/p/locations/l/reasoningEngines/1/sessions/t-{t2}"},
+                    ]
+                }
+            }),
+        )
+        active = run(REAL_LIST_FAQ_SESSIONS("u_abc"))
+        self.assertEqual(active, {f"t-{t1}", f"t-{t2}"})
+        post = _RecordingClient.posts[0]
+        self.assertTrue(post["url"].endswith(":query"))
+        self.assertEqual(post["json"], {
+            "class_method": "async_list_sessions",
+            "input": {"user_id": "u_abc"},
+        })
+
+    def test_list_faq_sessions_returns_none_on_failure(self):
+        _RecordingClient.error = RuntimeError("network down")
+        self.assertIsNone(run(REAL_LIST_FAQ_SESSIONS("u_abc")))
+        _RecordingClient.error = None
+        _RecordingClient.response = _FakeResp(500, "err")
+        self.assertIsNone(run(REAL_LIST_FAQ_SESSIONS("u_abc")))
+
+    @patch("backend.clients.agent_runtime.call_faq_agent")
+    @patch("backend.clients.agent_runtime.call_sentiment_agent")
+    def test_list_tickets_filters_empty_new_and_marks_expired(self, mock_sentiment, mock_faq):
+        from datetime import datetime, timedelta, timezone
+        from backend.db.models import Ticket
+        from backend.db.session import SessionLocal
+
+        mock_sentiment.return_value = {"sentiment": "NEUTRAL_FACTUAL", "extracted_entities": {}}
+        mock_faq.return_value = {"answer": "Order #10201 is in transit.", "citations": [], "grounded": True}
+
+        # 1. Empty NEW ticket (created on page load with 0 messages) -> filtered out
+        empty_new_id = self.alice.post("/api/tickets/create", json={}).json()["ticket_id"]
+
+        # 2. Active IN_PROGRESS ticket with messages
+        active_id = self.alice.post("/api/tickets/create", json={}).json()["ticket_id"]
+        self.alice.post("/api/chat", json={"message": "Where is order #10201?", "session_id": active_id})
+
+        # 3. Evicted IN_PROGRESS ticket (missing from Agent Platform active sessions)
+        evicted_id = self.alice.post("/api/tickets/create", json={}).json()["ticket_id"]
+        self.alice.post("/api/chat", json={"message": "Question about returns", "session_id": evicted_id})
+
+        # 4. TTL-expired ticket (created 8 days ago)
+        ttl_expired_id = self.alice.post("/api/tickets/create", json={}).json()["ticket_id"]
+        self.alice.post("/api/chat", json={"message": "Old question", "session_id": ttl_expired_id})
+        with SessionLocal() as db:
+            with db.begin():
+                t_row = db.query(Ticket).filter(Ticket.id == ttl_expired_id).first()
+                t_row.created_at = datetime.now(timezone.utc) - timedelta(days=8)
+
+        # Agent Platform reports only `active_id` and `ttl_expired_id` in its session store
+        agent_runtime.list_faq_sessions.return_value = {f"t-{active_id}", f"t-{ttl_expired_id}"}
+
+        resp = self.alice.get("/api/tickets")
+        self.assertEqual(resp.status_code, 200)
+        by_id = {t["id"]: t for t in resp.json()["tickets"]}
+
+        self.assertNotIn(empty_new_id, by_id)
+        self.assertIn(active_id, by_id)
+        self.assertFalse(by_id[active_id]["session_expired"])
+        self.assertEqual(by_id[active_id]["preview"], "Where is order #10201?")
+        self.assertEqual(by_id[active_id]["message_count"], 2)
+
+        self.assertIn(evicted_id, by_id)
+        self.assertTrue(by_id[evicted_id]["session_expired"])
+
+        self.assertIn(ttl_expired_id, by_id)
+        self.assertTrue(by_id[ttl_expired_id]["session_expired"])
+
+        # GET /api/tickets/{id} also reports session_expired accurately
+        detail_active = self.alice.get(f"/api/tickets/{active_id}").json()
+        self.assertFalse(detail_active["ticket"]["session_expired"])
+        self.assertEqual(len(detail_active["messages"]), 2)
+
+        detail_evicted = self.alice.get(f"/api/tickets/{evicted_id}").json()
+        self.assertTrue(detail_evicted["ticket"]["session_expired"])
+
+    @patch("backend.clients.agent_runtime.call_faq_agent")
+    @patch("backend.clients.agent_runtime.call_sentiment_agent")
+    def test_chat_rejects_expired_ticket_session(self, mock_sentiment, mock_faq):
+        from datetime import datetime, timedelta, timezone
+        from backend.db.models import Ticket
+        from backend.db.session import SessionLocal
+
+        ticket_id = self.alice.post("/api/tickets/create", json={}).json()["ticket_id"]
+        with SessionLocal() as db:
+            with db.begin():
+                t_row = db.query(Ticket).filter(Ticket.id == ticket_id).first()
+                t_row.created_at = datetime.now(timezone.utc) - timedelta(days=8)
+
+        resp = self.alice.post("/api/chat", json={"message": "Still there?", "session_id": ticket_id})
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("expired", resp.json()["detail"].lower())
+        mock_sentiment.assert_not_called()
+        mock_faq.assert_not_called()
 
 
 if __name__ == "__main__":

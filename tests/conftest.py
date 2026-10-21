@@ -45,14 +45,15 @@ def pytest_unconfigure(config):  # noqa: ARG001 - pytest hook signature
 
 @pytest.fixture(autouse=True)
 def _no_live_agent_session_cleanup(monkeypatch):
-    """Resolving a ticket deletes the FAQ agent session over the network.
+    """Resolving or listing tickets queries/deletes FAQ agent sessions over the network.
 
-    Stub it for every test so the suite never calls the live Agent Runtime;
-    tests that exercise the real function keep their own reference to it.
+    Stub them for every test so the suite never calls the live Agent Runtime;
+    tests that exercise the real functions keep their own references to them.
     """
     from backend.clients import agent_runtime
 
     monkeypatch.setattr(agent_runtime, "delete_faq_session", AsyncMock(return_value=True))
+    monkeypatch.setattr(agent_runtime, "list_faq_sessions", AsyncMock(return_value=None))
 
 
 _GITIGNORED_METADATA_FILES = frozenset({

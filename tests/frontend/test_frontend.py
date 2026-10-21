@@ -33,6 +33,13 @@ class TestFrontendServer(unittest.TestCase):
         # Same-origin relative API calls (no hardcoded backend host in the page).
         self.assertIn("const BACKEND_URL = '';", html_content)
         self.assertNotIn("http://127.0.0.1:8000", html_content)
+        # Unified current + previous session selector and history restoration hooks
+        self.assertIn('id="sessionSelect"', html_content)
+        self.assertNotIn('id="ticketBadge"', html_content)
+        self.assertIn("renderSessionSelect()", html_content)
+        self.assertIn("selectPreviousSession(", html_content)
+        self.assertIn("loadPreviousSessions()", html_content)
+        self.assertIn("loadTicketSession(", html_content)
 
 if __name__ == "__main__":
     unittest.main()

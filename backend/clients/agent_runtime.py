@@ -8,6 +8,7 @@ name, so a patch here is always seen.
 import asyncio
 import json
 import logging
+import os
 import random
 import re
 import uuid
@@ -225,6 +226,22 @@ async def call_faq_agent(message: str, session_id: str, user_id: str = "backend_
 # Vertex AI Agent Engine session IDs: lowercase [a-z0-9-], start with a letter, <= 63 chars.
 _VERTEX_SESSION_ID_RE = re.compile(r"^[a-z][a-z0-9-]{0,61}[a-z0-9]$")
 
+DEFAULT_FAQ_SESSION_TTL_SECONDS = 7 * 24 * 3600
+
+def faq_session_ttl_seconds() -> int:
+    """Session TTL in seconds on the FAQ agent (matches agents/faq_assistant/app_utils/services.py)."""
+    raw = os.environ.get("FAQ_SESSION_TTL_SECONDS", "").strip()
+    if raw:
+        try:
+            return max(60, min(int(raw), 365 * 24 * 3600))
+        except ValueError:
+            logger.warning(
+                "Ignoring non-integer FAQ_SESSION_TTL_SECONDS=%r; using %ds.",
+                raw,
+                DEFAULT_FAQ_SESSION_TTL_SECONDS,
+            )
+    return DEFAULT_FAQ_SESSION_TTL_SECONDS
+
 def agent_session_id(ticket_id: str) -> str:
     """Maps a ticket ID (uuid4, may start with a digit) to a valid, deterministic agent session ID."""
     sid = f"t-{ticket_id.strip().lower()}"
@@ -237,6 +254,43 @@ def faq_agent_query_url() -> str:
     if FAQ_AGENT_URL.endswith(":streamQuery"):
         return FAQ_AGENT_URL[: -len(":streamQuery")] + ":query"
     return FAQ_AGENT_URL
+
+async def list_faq_sessions(user_id: str) -> set[str] | None:
+    """Fetches active FAQ agent session IDs (e.g. {'t-<uuid>', ...}) for a user.
+
+    Returns None when FAQ_AGENT_URL is unconfigured or the Agent Runtime call fails,
+    so callers can distinguish "agent platform unreachable" from "session was evicted".
+    """
+    if not FAQ_AGENT_URL:
+        return None
+    with tracer.start_as_current_span("list_faq_agent_sessions") as span:
+        try:
+            payload = {
+                "class_method": "async_list_sessions",
+                "input": {"user_id": user_id},
+            }
+            headers = gcp_auth.get_gcp_auth_headers()
+            headers["Content-Type"] = "application/json"
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.post(faq_agent_query_url(), json=payload, headers=headers)
+            span.set_attribute("http.status_code", resp.status_code)
+            if resp.status_code != 200:
+                logger.warning("FAQ session list returned HTTP %s.", resp.status_code)
+                return None
+            body = resp.json()
+            output = body.get("output", body) if isinstance(body, dict) else {}
+            raw_sessions = output.get("sessions", []) if isinstance(output, dict) else []
+            active: set[str] = set()
+            for s in raw_sessions:
+                if isinstance(s, dict):
+                    sid = s.get("id") or s.get("session_id") or s.get("name", "")
+                    if isinstance(sid, str) and sid:
+                        active.add(sid.rsplit("/", 1)[-1])
+            span.set_attribute("faq.active_sessions", len(active))
+            return active
+        except Exception as e:
+            logger.warning("FAQ session list failed: %s", type(e).__name__)
+            return None
 
 async def delete_faq_session(ticket_id: str, user_id: str) -> bool:
     """Best-effort deletion of the FAQ agent's conversation memory for a ticket.

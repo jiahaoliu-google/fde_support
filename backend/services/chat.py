@@ -20,9 +20,11 @@ from backend.core.telemetry import tracer
 from backend.db.models import Message, Ticket
 from backend.security.model_armor import ScreeningResult, model_armor
 from backend.services.tickets import (
+    TICKET_EXPIRED_DETAIL,
     TICKET_RESOLVED_DETAIL,
     TICKET_RESOLVED_DURING_REQUEST_DETAIL,
     get_owned_ticket,
+    is_ttl_expired,
     new_ticket_id,
     record_turn,
 )
@@ -317,9 +319,13 @@ async def handle_support_query(db: Session, caller: str, message: str,
     existing_status = None
     if session_id:
         with db.begin():
-            existing_status = get_owned_ticket(db, session_id, caller).current_status
+            existing_ticket = get_owned_ticket(db, session_id, caller)
+            existing_status = existing_ticket.current_status
+            existing_created_at = existing_ticket.created_at
         if existing_status == "RESOLVED":
             raise HTTPException(status_code=400, detail=TICKET_RESOLVED_DETAIL)
+        if is_ttl_expired(existing_created_at):
+            raise HTTPException(status_code=400, detail=TICKET_EXPIRED_DETAIL)
         ticket_id = session_id
     else:
         ticket_id = new_ticket_id()
