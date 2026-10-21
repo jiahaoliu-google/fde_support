@@ -130,7 +130,12 @@ class TestSentimentFailClosed(unittest.TestCase):
 
     def test_outage_still_escalates_and_counts_for_breaker(self):
         resp = self._chat(RuntimeError("connection refused"))
-        self.assertEqual(resp.json()["ticket_status"], "ESCALATED")
+        data = resp.json()
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(data["ticket_status"], "ESCALATED")
+        self.assertEqual(data["sentiment"], "UNAVAILABLE")
+        self.assertEqual(data["routed_to"], "Human Escalation Queue")
+        self.assertIn("human support queue service", data["answer"])
         self.mock_faq.assert_not_called()
         self.assertEqual(rag_circuit_breaker.failure_count, 1)
 

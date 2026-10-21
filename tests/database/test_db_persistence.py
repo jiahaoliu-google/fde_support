@@ -113,6 +113,17 @@ class TestTicketPersistence(_AppWithTempDatabase):
         tid = self.new_ticket()
         self.assertEqual(self.client.post(f"/api/tickets/{tid}/resolve").status_code, 200)
         self.assertEqual(self.db.state(tid), ("RESOLVED", ["SYSTEM"]))
+        blocked = self.chat("Can I add one more question?", ticket_id=tid)
+        self.assertEqual(blocked.status_code, 400)
+        self.assertIn("RESOLVED", blocked.json()["detail"])
+
+    def test_faq_soft_fallback_escalates_ticket(self):
+        tid = self.new_ticket()
+        self.faq_escalate = True
+        r = self.chat("Obscure question", ticket_id=tid)
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertEqual(r.json()["ticket_status"], "ESCALATED")
+        self.assertEqual(self.db.state(tid), ("ESCALATED", ["AGENT", "CUSTOMER"]))
 
     def test_escalated_follow_up_is_stored_without_agent_calls(self):
         self.sentiment = agent_runtime.SENTIMENT_URGENT
@@ -122,6 +133,10 @@ class TestTicketPersistence(_AppWithTempDatabase):
         self.assertEqual(r.status_code, 200, r.text)
         self.assertEqual(self.db.state(tid), ("ESCALATED", ["CUSTOMER", "CUSTOMER", "SYSTEM"]))
         self.assertEqual(self.faq_calls, 0)
+        transcript = self.client.get(f"/api/tickets/{tid}").json()["messages"]
+        customer_turns = [m["message_text"] for m in transcript if m["sender"] == "CUSTOMER"]
+        self.assertIn("any update?", customer_turns)
+        self.assertFalse(any(m["sender"] == "AGENT" for m in transcript))
 
 
 # ---------------------------------------------------------------------------
