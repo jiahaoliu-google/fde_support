@@ -15,6 +15,7 @@ Layer 3: Dependency & version drift guards
 from __future__ import annotations
 
 import importlib.metadata
+import json
 import os
 import pathlib
 import subprocess
@@ -173,3 +174,31 @@ def test_google_adk_version_specifier_consistent_across_repo():
     assert len(unique_specs) == 1, (
         f"Inconsistent google-adk version specifiers across requirements files: {adk_specs}"
     )
+
+
+def test_frontend_package_lock_uses_public_npmjs_registry():
+    """Ensure frontend/package-lock.json has no internal proxy URLs or --prefix relative keys."""
+    lock_path = REPO_ROOT / "frontend" / "package-lock.json"
+    assert lock_path.exists(), "frontend/package-lock.json must exist for deterministic CI builds"
+
+    lock_data = json.loads(lock_path.read_text(encoding="utf-8"))
+    packages = lock_data.get("packages", {})
+    assert packages, "frontend/package-lock.json packages map must not be empty"
+
+    bad_entries: list[str] = []
+    for pkg_key, pkg_meta in packages.items():
+        if not pkg_key:
+            continue
+        if not pkg_key.startswith("node_modules/"):
+            bad_entries.append(f"{pkg_key}: package key must start with 'node_modules/'")
+        resolved = pkg_meta.get("resolved", "")
+        if resolved and not resolved.startswith("https://registry.npmjs.org/"):
+            bad_entries.append(f"{pkg_key}: non-public resolved URL '{resolved}'")
+        if "/-/@" in resolved:
+            bad_entries.append(f"{pkg_key}: malformed scoped tarball path '{resolved}'")
+
+    assert not bad_entries, (
+        "frontend/package-lock.json contains internal proxy URLs or corrupted keys:\n  - "
+        + "\n  - ".join(bad_entries[:10])
+    )
+
