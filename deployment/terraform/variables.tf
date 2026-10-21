@@ -94,7 +94,10 @@ variable "frontend_ingress" {
 variable "backend_invokers" {
   type        = list(string)
   description = "Extra principals allowed to invoke the backend directly (the frontend SA is always granted)."
-  default     = ["serviceAccount:883790454740-compute@developer.gserviceaccount.com"]
+  default = [
+    "serviceAccount:883790454740-compute@developer.gserviceaccount.com",
+    "serviceAccount:fde-support-ci-eval-sa@fde-support-sandbox-dev-jliu.iam.gserviceaccount.com",
+  ]
 }
 
 variable "frontend_invokers" {
@@ -105,6 +108,7 @@ variable "frontend_invokers" {
     "user:jiahaoliu@google.com",
     "serviceAccount:883790454740-compute@developer.gserviceaccount.com",
     "serviceAccount:service-883790454740@compute-system.iam.gserviceaccount.com",
+    "serviceAccount:fde-support-ci-eval-sa@fde-support-sandbox-dev-jliu.iam.gserviceaccount.com",
   ]
 }
 

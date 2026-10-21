@@ -60,16 +60,38 @@ resource "google_secret_manager_secret_iam_member" "backend_db_secret" {
   member    = google_service_account.sa["backend"].member
 }
 
-# Existing bindings for the CI eval SA (kept so the pre-deployment eval keeps working).
+# Existing + CI/CD bindings for the CI eval & deploy SA (GitHub Actions via WIF).
 resource "google_project_iam_member" "ci_eval" {
   for_each = toset([
+    "roles/aiplatform.admin",
     "roles/aiplatform.user",
+    "roles/artifactregistry.writer",
+    "roles/cloudbuild.builds.editor",
     "roles/discoveryengine.viewer",
+    "roles/iam.serviceAccountUser",
+    "roles/run.admin",
     "roles/serviceusage.serviceUsageConsumer",
+    "roles/storage.admin",
   ])
   project = var.project_id
   role    = each.value
   member  = google_service_account.sa["ci_eval"].member
+}
+
+# Allow CI SA to act as the Cloud Run runtime service accounts when rolling revisions.
+resource "google_service_account_iam_member" "ci_eval_act_as_runtime_sa" {
+  for_each = toset(["backend", "frontend"])
+
+  service_account_id = google_service_account.sa[each.key].name
+  role               = "roles/iam.serviceAccountUser"
+  member             = google_service_account.sa["ci_eval"].member
+}
+
+# Allow CI SA to mint OIDC ID tokens for itself (used by Gate 5 Canary E2E smoke test).
+resource "google_service_account_iam_member" "ci_eval_self_token_creator" {
+  service_account_id = google_service_account.sa["ci_eval"].name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = google_service_account.sa["ci_eval"].member
 }
 
 # Cloud Build / default compute SA: OTel traces from build-time smoke tests (existing grant).

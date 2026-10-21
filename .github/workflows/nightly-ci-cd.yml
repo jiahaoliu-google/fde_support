@@ -1,0 +1,499 @@
+# Combined Daily CI/CD Pipeline: Verify -> Eval -> Build Images -> Deploy Agents -> Deploy Cloud Run
+#
+# Schedule: Runs daily at 12:00 PM EST (17:00 UTC) and on manual `workflow_dispatch`.
+#
+# 5 Sequential Quality & Safety Gates:
+#   Job 1 (unit-and-security-gate):  Offline pytest suite + >=80% line coverage gate.
+#   Job 2 (agent-eval-kpi-gate):     100-ticket golden set + LLM judge with --enforce-gates (T1, T4, T5, T8).
+#   Job 3 (build-and-verify-images): Build 4 Docker images (backend, frontend, faq-assistant, sentiment-router),
+#                                    boot-test each locally on 127.0.0.1, push to Artifact Registry, emit @sha256 digests.
+#   Job 4 (deploy-agents):           Update Vertex AI Agent Runtime from @sha256 base images using each agent's
+#                                    deploy.sh (preserving --agent-identity and --update-env-vars), run live
+#                                    :streamQuery probes, and auto-rollback to :latest-deployed on failure.
+#   Job 5 (deploy-cloud-run):        Deploy backend & frontend to Cloud Run with --no-traffic --tag=canary,
+#                                    run live E2E canary smoke tests, and shift 100% traffic on success
+#                                    (or pin traffic back to previous revisions on failure).
+name: Daily Build & Safe Deployment CI/CD
+
+on:
+  schedule:
+    # 12:00 PM EST = 17:00 UTC every day
+    - cron: '0 17 * * *'
+  workflow_dispatch:
+    inputs:
+      skip_eval:
+        description: 'Skip the 100-ticket LLM-judge evaluation gate (fast-path manual run)'
+        required: false
+        default: false
+        type: boolean
+      deploy_to_gcp:
+        description: 'Deploy verified images to Vertex AI Agent Runtime and Cloud Run'
+        required: false
+        default: true
+        type: boolean
+
+concurrency:
+  group: nightly-ci-cd-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  GCP_PROJECT_ID: fde-support-sandbox-dev-jliu
+  GCP_REGION: us-central1
+  AR_REPO: us-central1-docker.pkg.dev/fde-support-sandbox-dev-jliu/fde-support-repo
+  FAQ_AGENT_URL: https://us-central1-aiplatform.googleapis.com/v1/projects/883790454740/locations/us-central1/reasoningEngines/6767283237606653952:streamQuery
+  SENTIMENT_AGENT_URL: https://us-central1-aiplatform.googleapis.com/v1/projects/883790454740/locations/us-central1/reasoningEngines/7184992103045267456:streamQuery
+
+jobs:
+  # ============================================================================
+  # JOB 1: Offline Unit, Security, and Coverage Gate (>= 80%)
+  # ============================================================================
+  unit-and-security-gate:
+    name: "Gate 1: Unit & Security Tests (≥80% cov)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            agents/faq_assistant/requirements.txt
+            agents/sentiment_router/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt \
+                      -r agents/faq_assistant/requirements.txt \
+                      -r agents/sentiment_router/requirements.txt \
+                      pyyaml
+
+      - name: Run unit, security, and transaction tests (offline, ≥ 80% coverage gate)
+        env:
+          DATABASE_URL: "sqlite:///./test_local.db"
+        run: pytest -v --cov --cov-report=term-missing
+
+  # ============================================================================
+  # JOB 2: 100-Ticket Golden Evaluation & North Star KPI Gate (--enforce-gates)
+  # ============================================================================
+  agent-eval-kpi-gate:
+    name: "Gate 2: Agent Eval & KPI Gate (100 tickets)"
+    needs: unit-and-security-gate
+    if: ${{ github.event_name == 'schedule' || inputs.skip_eval != true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      GOOGLE_GENAI_USE_VERTEXAI: 'true'
+      FAQ_AGENT_URL: ''
+      SENTIMENT_AGENT_URL: ''
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            agents/faq_assistant/requirements.txt
+            agents/sentiment_router/requirements.txt
+
+      - name: Authenticate to Google Cloud (WIF)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Install dependencies and agents-cli
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt \
+                      -r agents/faq_assistant/requirements.txt \
+                      -r agents/sentiment_router/requirements.txt \
+                      pyyaml
+          uv tool install google-agents-cli==1.3.0
+          uv tool dir --bin >> "$GITHUB_PATH"
+
+      - name: Run agents on all 100 golden tickets (in-process)
+        id: infer
+        run: python tests/eval/run_inference.py --concurrency 3 --github-output
+
+      - name: Grade answers with LLM judges
+        id: grade
+        env:
+          RUN_DIR: ${{ steps.infer.outputs.run_dir }}
+        run: |
+          n=$(python -c "import json,sys; print(len(json.load(open(sys.argv[1]))['eval_cases']))" "$RUN_DIR/traces.json")
+          if [ "$n" -eq 0 ]; then
+            echo "::error title=No FAQ traces::No neutral, search-ready ticket produced an FAQ answer to grade."
+            exit 1
+          fi
+          agents-cli eval grade \
+            --traces "$RUN_DIR/traces.json" \
+            --config tests/eval/eval_config_faq_rubric.yaml \
+            --output "$RUN_DIR/grade"
+
+      - name: Build KPI report and enforce TDD gates (T1, T4, T5, T8)
+        if: ${{ always() && steps.infer.outputs.run_dir != '' }}
+        env:
+          RUN_DIR: ${{ steps.infer.outputs.run_dir }}
+        run: |
+          python scripts/eval/generate_kpi_report.py \
+            --run-dir "$RUN_DIR" \
+            --out-dir "$RUN_DIR" \
+            --run-url "$RUN_URL" \
+            --annotations \
+            --enforce-gates
+          cat "$RUN_DIR/kpi_report.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload nightly eval artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-eval-results-${{ github.run_id }}
+          path: artifacts/eval/
+          if-no-files-found: warn
+          retention-days: 90
+
+  # ============================================================================
+  # JOB 3: Build All 4 Artifact Images, Local Boot-Test, Push @sha256 Digests
+  # ============================================================================
+  build-and-verify-images:
+    name: "Gate 3: Build & Boot-Test 4 Container Images"
+    needs: [unit-and-security-gate, agent-eval-kpi-gate]
+    if: ${{ !failure() && !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      backend_digest: ${{ steps.push.outputs.backend_digest }}
+      frontend_digest: ${{ steps.push.outputs.frontend_digest }}
+      faq_digest: ${{ steps.push.outputs.faq_digest }}
+      sentiment_digest: ${{ steps.push.outputs.sentiment_digest }}
+      image_tag: ${{ steps.push.outputs.image_tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud (WIF)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK and Docker Auth
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker "${GCP_REGION}-docker.pkg.dev" --quiet
+
+      - name: Build all 4 container images locally
+        id: build
+        run: |
+          SHORT_SHA="${GITHUB_SHA::7}"
+          DATE_TAG="$(date -u +%Y%m%d-%H%M)"
+          IMAGE_TAG="${SHORT_SHA}-${DATE_TAG}"
+          echo "image_tag=${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
+
+          echo "🔨 Building backend image..."
+          docker build -f backend/Dockerfile -t "${AR_REPO}/backend:${IMAGE_TAG}" .
+
+          echo "🔨 Building frontend image..."
+          docker build -f frontend/Dockerfile -t "${AR_REPO}/frontend:${IMAGE_TAG}" .
+
+          echo "🔨 Building faq-assistant agent image..."
+          docker build -t "${AR_REPO}/faq-assistant:${IMAGE_TAG}" agents/faq_assistant
+
+          echo "🔨 Building sentiment-router agent image..."
+          docker build -t "${AR_REPO}/sentiment-router:${IMAGE_TAG}" agents/sentiment_router
+
+      - name: Gate 3 — Boot-test all 4 built containers locally on 127.0.0.1
+        env:
+          BACKEND_IMAGE: "${{ env.AR_REPO }}/backend:${{ steps.build.outputs.image_tag }}"
+          FRONTEND_IMAGE: "${{ env.AR_REPO }}/frontend:${{ steps.build.outputs.image_tag }}"
+          FAQ_IMAGE: "${{ env.AR_REPO }}/faq-assistant:${{ steps.build.outputs.image_tag }}"
+          SENTIMENT_IMAGE: "${{ env.AR_REPO }}/sentiment-router:${{ steps.build.outputs.image_tag }}"
+        run: bash scripts/ci/verify_built_containers.sh
+
+      - name: Push verified images to Artifact Registry and record @sha256 digests
+        id: push
+        run: |
+          IMAGE_TAG="${{ steps.build.outputs.image_tag }}"
+          echo "image_tag=${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
+
+          for svc in backend frontend faq-assistant sentiment-router; do
+            docker push "${AR_REPO}/${svc}:${IMAGE_TAG}"
+          done
+
+          BACKEND_DIGEST="$(docker inspect --format='{{index .RepoDigests 0}}' "${AR_REPO}/backend:${IMAGE_TAG}")"
+          FRONTEND_DIGEST="$(docker inspect --format='{{index .RepoDigests 0}}' "${AR_REPO}/frontend:${IMAGE_TAG}")"
+          FAQ_DIGEST="$(docker inspect --format='{{index .RepoDigests 0}}' "${AR_REPO}/faq-assistant:${IMAGE_TAG}")"
+          SENTIMENT_DIGEST="$(docker inspect --format='{{index .RepoDigests 0}}' "${AR_REPO}/sentiment-router:${IMAGE_TAG}")"
+
+          echo "backend_digest=${BACKEND_DIGEST}" >> "$GITHUB_OUTPUT"
+          echo "frontend_digest=${FRONTEND_DIGEST}" >> "$GITHUB_OUTPUT"
+          echo "faq_digest=${FAQ_DIGEST}" >> "$GITHUB_OUTPUT"
+          echo "sentiment_digest=${SENTIMENT_DIGEST}" >> "$GITHUB_OUTPUT"
+
+          cat > release-manifest.json <<EOF
+          {
+            "git_sha": "${GITHUB_SHA}",
+            "image_tag": "${IMAGE_TAG}",
+            "built_at_utc": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "images": {
+              "backend": "${BACKEND_DIGEST}",
+              "frontend": "${FRONTEND_DIGEST}",
+              "faq_assistant": "${FAQ_DIGEST}",
+              "sentiment_router": "${SENTIMENT_DIGEST}"
+            }
+          }
+          EOF
+          cat release-manifest.json >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload release-manifest.json artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-manifest-${{ github.run_id }}
+          path: release-manifest.json
+          retention-days: 90
+
+  # ============================================================================
+  # JOB 4: Deploy Agents to Vertex AI Agent Runtime + Live Probe + Auto-Rollback
+  # ============================================================================
+  deploy-agents:
+    name: "Gate 4: Deploy Agents (with --agent-identity) & Probe"
+    needs: build-and-verify-images
+    if: ${{ !failure() && !cancelled() && (github.event_name == 'schedule' || inputs.deploy_to_gcp != false) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Authenticate to Google Cloud (WIF)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Set up uv and install agents-cli + smoke dependencies
+        uses: astral-sh/setup-uv@v6
+
+      - name: Install agents-cli and runtime dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          uv tool install google-agents-cli==1.3.0
+          uv tool dir --bin >> "$GITHUB_PATH"
+
+      - name: Record previous :latest-deployed agent digests for rollback
+        id: prev
+        run: |
+          PREV_FAQ="$(gcloud artifacts docker images describe "${AR_REPO}/faq-assistant:latest-deployed" \
+            --format='value(image_summary.fully_qualified_digest)' 2>/dev/null || true)"
+          PREV_SENTIMENT="$(gcloud artifacts docker images describe "${AR_REPO}/sentiment-router:latest-deployed" \
+            --format='value(image_summary.fully_qualified_digest)' 2>/dev/null || true)"
+          echo "prev_faq_digest=${PREV_FAQ}" >> "$GITHUB_OUTPUT"
+          echo "prev_sentiment_digest=${PREV_SENTIMENT}" >> "$GITHUB_OUTPUT"
+          echo "Previous FAQ digest: ${PREV_FAQ:-none}"
+          echo "Previous Sentiment digest: ${PREV_SENTIMENT:-none}"
+
+      - name: Deploy Sentiment Router & FAQ Assistant from verified @sha256 images (preserving --agent-identity)
+        env:
+          FAQ_DIGEST: ${{ needs.build-and-verify-images.outputs.faq_digest }}
+          SENTIMENT_DIGEST: ${{ needs.build-and-verify-images.outputs.sentiment_digest }}
+        run: |
+          # Pin each agent's Dockerfile to the exact verified @sha256 image from Job 3
+          printf 'FROM %s\n' "${SENTIMENT_DIGEST}" > agents/sentiment_router/Dockerfile
+          printf 'FROM %s\n' "${FAQ_DIGEST}" > agents/faq_assistant/Dockerfile
+
+          # Invoke the repository's canonical deploy.sh scripts (includes --agent-identity,
+          # --update-env-vars for FAQ Assistant, and deployment_metadata.json initialization)
+          ./agents/sentiment_router/deploy.sh
+          ./agents/faq_assistant/deploy.sh
+
+      - name: Gate 4 — Live :streamQuery smoke test against deployed Agent Runtime engines
+        run: python scripts/ci/smoke_test_deployed_agents.py
+
+      - name: Tag verified agent images as :latest-deployed
+        if: success()
+        env:
+          FAQ_DIGEST: ${{ needs.build-and-verify-images.outputs.faq_digest }}
+          SENTIMENT_DIGEST: ${{ needs.build-and-verify-images.outputs.sentiment_digest }}
+        run: |
+          gcloud artifacts docker tags add "${FAQ_DIGEST}" "${AR_REPO}/faq-assistant:latest-deployed" --quiet
+          gcloud artifacts docker tags add "${SENTIMENT_DIGEST}" "${AR_REPO}/sentiment-router:latest-deployed" --quiet
+
+      - name: Auto-Rollback Agents to :latest-deployed on failure
+        if: failure()
+        env:
+          PREV_FAQ: ${{ steps.prev.outputs.prev_faq_digest }}
+          PREV_SENTIMENT: ${{ steps.prev.outputs.prev_sentiment_digest }}
+        run: |
+          echo "::error title=Agent Deployment or Smoke Probe Failed::Rolling back agents to :latest-deployed digests..."
+          if [ -n "${PREV_SENTIMENT}" ]; then
+            printf 'FROM %s\n' "${PREV_SENTIMENT}" > agents/sentiment_router/Dockerfile
+            ./agents/sentiment_router/deploy.sh || true
+          fi
+          if [ -n "${PREV_FAQ}" ]; then
+            printf 'FROM %s\n' "${PREV_FAQ}" > agents/faq_assistant/Dockerfile
+            ./agents/faq_assistant/deploy.sh || true
+          fi
+
+  # ============================================================================
+  # JOB 5: Deploy Cloud Run Canary (--no-traffic) + Live E2E Probe + Traffic Cutover
+  # ============================================================================
+  deploy-cloud-run:
+    name: "Gate 5: Cloud Run Canary Deploy, E2E Smoke & Cutover"
+    needs: [build-and-verify-images, deploy-agents]
+    if: ${{ !failure() && !cancelled() && (github.event_name == 'schedule' || inputs.deploy_to_gcp != false) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Authenticate to Google Cloud (WIF)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Install Python dependencies for Canary E2E Smoke Test
+        run: |
+          python -m pip install --upgrade pip
+          pip install httpx google-auth requests
+
+      - name: Record currently serving Cloud Run revisions for rollback
+        id: prev_rev
+        run: |
+          PREV_BACKEND_REV="$(gcloud run services describe fde-support-backend \
+            --project="${GCP_PROJECT_ID}" --region="${GCP_REGION}" \
+            --format='value(status.latestReadyRevisionName)')"
+          PREV_FRONTEND_REV="$(gcloud run services describe fde-support-frontend \
+            --project="${GCP_PROJECT_ID}" --region="${GCP_REGION}" \
+            --format='value(status.latestReadyRevisionName)')"
+          echo "prev_backend_rev=${PREV_BACKEND_REV}" >> "$GITHUB_OUTPUT"
+          echo "prev_frontend_rev=${PREV_FRONTEND_REV}" >> "$GITHUB_OUTPUT"
+          echo "Current Backend revision:  ${PREV_BACKEND_REV}"
+          echo "Current Frontend revision: ${PREV_FRONTEND_REV}"
+
+      - name: Deploy Backend & Frontend with --no-traffic --tag=canary
+        id: canary
+        env:
+          BACKEND_DIGEST: ${{ needs.build-and-verify-images.outputs.backend_digest }}
+          FRONTEND_DIGEST: ${{ needs.build-and-verify-images.outputs.frontend_digest }}
+        run: |
+          gcloud run services update fde-support-backend \
+            --project="${GCP_PROJECT_ID}" \
+            --region="${GCP_REGION}" \
+            --image="${BACKEND_DIGEST}" \
+            --no-traffic \
+            --tag=canary \
+            --quiet
+
+          gcloud run services update fde-support-frontend \
+            --project="${GCP_PROJECT_ID}" \
+            --region="${GCP_REGION}" \
+            --image="${FRONTEND_DIGEST}" \
+            --no-traffic \
+            --tag=canary \
+            --quiet
+
+          CANARY_BACKEND_URL="$(gcloud run services describe fde-support-backend \
+            --project="${GCP_PROJECT_ID}" --region="${GCP_REGION}" --format=json \
+            | python -c "import json,sys; d=json.load(sys.stdin); print(next(t['url'] for t in d['status']['traffic'] if t.get('tag')=='canary'))")"
+          CANARY_FRONTEND_URL="$(gcloud run services describe fde-support-frontend \
+            --project="${GCP_PROJECT_ID}" --region="${GCP_REGION}" --format=json \
+            | python -c "import json,sys; d=json.load(sys.stdin); print(next(t['url'] for t in d['status']['traffic'] if t.get('tag')=='canary'))")"
+
+          echo "canary_backend_url=${CANARY_BACKEND_URL}" >> "$GITHUB_OUTPUT"
+          echo "canary_frontend_url=${CANARY_FRONTEND_URL}" >> "$GITHUB_OUTPUT"
+          echo "Canary Backend URL:  ${CANARY_BACKEND_URL}"
+          echo "Canary Frontend URL: ${CANARY_FRONTEND_URL}"
+
+      - name: Gate 5 — Run Live E2E Smoke Test against zero-traffic Canary URLs
+        run: |
+          python scripts/ci/smoke_test_canary_e2e.py \
+            --backend-url "${{ steps.canary.outputs.canary_backend_url }}" \
+            --frontend-url "${{ steps.canary.outputs.canary_frontend_url }}"
+
+      - name: Shift 100% Production Traffic to Verified Canary Revisions
+        if: success()
+        env:
+          BACKEND_DIGEST: ${{ needs.build-and-verify-images.outputs.backend_digest }}
+          FRONTEND_DIGEST: ${{ needs.build-and-verify-images.outputs.frontend_digest }}
+        run: |
+          gcloud run services update-traffic fde-support-backend \
+            --project="${GCP_PROJECT_ID}" \
+            --region="${GCP_REGION}" \
+            --to-latest \
+            --quiet
+
+          gcloud run services update-traffic fde-support-frontend \
+            --project="${GCP_PROJECT_ID}" \
+            --region="${GCP_REGION}" \
+            --to-latest \
+            --quiet
+
+          gcloud artifacts docker tags add "${BACKEND_DIGEST}" "${AR_REPO}/backend:latest-deployed" --quiet
+          gcloud artifacts docker tags add "${FRONTEND_DIGEST}" "${AR_REPO}/frontend:latest-deployed" --quiet
+          echo "✅ 100% production traffic shifted to new Backend and Frontend revisions!"
+
+      - name: Auto-Rollback Cloud Run Traffic to Previous Revisions on Failure
+        if: failure()
+        env:
+          PREV_BACKEND_REV: ${{ steps.prev_rev.outputs.prev_backend_rev }}
+          PREV_FRONTEND_REV: ${{ steps.prev_rev.outputs.prev_frontend_rev }}
+        run: |
+          echo "::error title=Canary E2E Smoke Failed::Pinning 100% traffic back to previous healthy revisions..."
+          if [ -n "${PREV_BACKEND_REV}" ]; then
+            gcloud run services update-traffic fde-support-backend \
+              --project="${GCP_PROJECT_ID}" \
+              --region="${GCP_REGION}" \
+              --to-revisions="${PREV_BACKEND_REV}=100" \
+              --quiet || true
+          fi
+          if [ -n "${PREV_FRONTEND_REV}" ]; then
+            gcloud run services update-traffic fde-support-frontend \
+              --project="${GCP_PROJECT_ID}" \
+              --region="${GCP_REGION}" \
+              --to-revisions="${PREV_FRONTEND_REV}=100" \
+              --quiet || true
+          fi

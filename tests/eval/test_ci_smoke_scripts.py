@@ -1,0 +1,267 @@
+"""Offline unit tests for Gate 4 and Gate 5 CI/CD smoke-test scripts."""
+from __future__ import annotations
+
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import httpx
+import pytest
+
+from scripts.ci import smoke_test_canary_e2e, smoke_test_deployed_agents
+
+
+def test_smoke_deployed_agents_happy_path():
+    """Gate 4 passes when both Sentiment Router and FAQ Assistant return expected responses."""
+    with (
+        patch(
+            "scripts.ci.smoke_test_deployed_agents.agent_runtime.call_sentiment_agent",
+            new=AsyncMock(return_value={"sentiment": "URGENT_FRUSTRATED", "confidence": 0.99}),
+        ),
+        patch(
+            "scripts.ci.smoke_test_deployed_agents.agent_runtime.call_faq_agent",
+            new=AsyncMock(
+                return_value={
+                    "answer": "Order #10001 is currently DELIVERED.",
+                    "grounded": True,
+                    "citations": ["Order #10001"],
+                    "escalate": False,
+                }
+            ),
+        ),
+        patch(
+            "scripts.ci.smoke_test_deployed_agents.agent_runtime.delete_faq_session",
+            new=AsyncMock(return_value=True),
+        ) as mock_del,
+    ):
+        exit_code = smoke_test_deployed_agents.main(
+            [
+                "--sentiment-url",
+                "https://us-central1-aiplatform.googleapis.com/v1/sentiment:streamQuery",
+                "--faq-url",
+                "https://us-central1-aiplatform.googleapis.com/v1/faq:streamQuery",
+            ]
+        )
+        assert exit_code == 0
+        mock_del.assert_awaited_once()
+
+
+def test_smoke_deployed_agents_fails_on_wrong_sentiment():
+    """Gate 4 exits 1 (triggering rollback) if Sentiment Router misclassifies urgent probe."""
+    with patch(
+        "scripts.ci.smoke_test_deployed_agents.agent_runtime.call_sentiment_agent",
+        new=AsyncMock(return_value={"sentiment": "NEUTRAL_INQUIRY", "confidence": 0.5}),
+    ):
+        assert smoke_test_deployed_agents.main([]) == 1
+
+
+def test_smoke_deployed_agents_fails_on_ungrounded_faq_and_cleans_up():
+    """Gate 4 exits 1 and cleans up the session if FAQ Assistant response is ungrounded."""
+    with (
+        patch(
+            "scripts.ci.smoke_test_deployed_agents.agent_runtime.call_sentiment_agent",
+            new=AsyncMock(return_value={"sentiment": "URGENT_FRUSTRATED", "confidence": 0.99}),
+        ),
+        patch(
+            "scripts.ci.smoke_test_deployed_agents.agent_runtime.call_faq_agent",
+            new=AsyncMock(
+                return_value={
+                    "answer": "",
+                    "grounded": False,
+                    "citations": [],
+                    "escalate": True,
+                }
+            ),
+        ),
+        patch(
+            "scripts.ci.smoke_test_deployed_agents.agent_runtime.delete_faq_session",
+            new=AsyncMock(return_value=True),
+        ) as mock_del,
+    ):
+        assert smoke_test_deployed_agents.main([]) == 1
+        mock_del.assert_awaited_once()
+
+
+def test_smoke_deployed_agents_handles_runtime_exception():
+    """Gate 4 exits 1 if an unexpected exception occurs during the probe."""
+    with patch(
+        "scripts.ci.smoke_test_deployed_agents.agent_runtime.call_sentiment_agent",
+        new=AsyncMock(side_effect=RuntimeError("Vertex endpoint unreachable")),
+    ):
+        assert smoke_test_deployed_agents.main([]) == 1
+
+
+def test_fetch_oidc_id_token_env_and_fallbacks(monkeypatch):
+    """Verify OIDC token resolution via env var, google-auth, IAM generateIdToken, and gcloud fallback."""
+    monkeypatch.setenv("CI_CLOUD_RUN_ID_TOKEN", "env-token-123")
+    assert smoke_test_canary_e2e.fetch_oidc_id_token("https://canary---backend.a.run.app") == "env-token-123"
+
+    monkeypatch.delenv("CI_CLOUD_RUN_ID_TOKEN", raising=False)
+    with patch("google.oauth2.id_token.fetch_id_token", return_value="google-oauth-token"):
+        assert (
+            smoke_test_canary_e2e.fetch_oidc_id_token("https://canary---backend.a.run.app")
+            == "google-oauth-token"
+        )
+
+    with (
+        patch("google.oauth2.id_token.fetch_id_token", side_effect=RuntimeError("no metadata server")),
+        patch("google.auth.default", side_effect=RuntimeError("no ADC")),
+        patch("subprocess.check_output", return_value=b"gcloud-cli-token\n"),
+    ):
+        assert (
+            smoke_test_canary_e2e.fetch_oidc_id_token("https://canary---backend.a.run.app")
+            == "gcloud-cli-token"
+        )
+
+    with (
+        patch("google.oauth2.id_token.fetch_id_token", side_effect=RuntimeError("no metadata server")),
+        patch("google.auth.default", side_effect=RuntimeError("no ADC")),
+        patch("subprocess.check_output", side_effect=RuntimeError("gcloud failed")),
+    ):
+        with pytest.raises(RuntimeError, match="Unable to acquire OIDC ID token"):
+            smoke_test_canary_e2e.fetch_oidc_id_token("https://canary---backend.a.run.app")
+
+
+def _build_mock_canary_handler(
+    *,
+    frontend_health_status: int = 200,
+    frontend_tickets_status: int = 401,
+    backend_health_status: int = 200,
+    customer_msg_text: str = "My email is [EMAIL_REDACTED], what is the status of order #10002?",
+    urgent_routed_to: str = "HUMAN_ESCALATION",
+):
+    """Builds a deterministic httpx.MockTransport handler for the 5 canary checks."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        url = str(request.url)
+        if url == "https://canary---frontend.run.app/health":
+            return httpx.Response(frontend_health_status, json={"status": "healthy"})
+        if url == "https://canary---frontend.run.app/api/tickets":
+            return httpx.Response(frontend_tickets_status, json={"detail": "Missing IAP JWT assertion."})
+        if url == "https://canary---backend.run.app/health":
+            return httpx.Response(
+                backend_health_status,
+                json={"status": "healthy", "database": "connected"},
+            )
+        if url == "https://canary---backend.run.app/api/chat" and request.method == "POST":
+            import json
+
+            body = json.loads(request.content.decode("utf-8"))
+            if "10002" in body.get("message", ""):
+                return httpx.Response(
+                    200,
+                    json={
+                        "ticket_id": "t-neutral-1",
+                        "sentiment": "NEUTRAL_INQUIRY",
+                        "routed_to": "FAQ_AGENT",
+                        "ticket_status": "IN_PROGRESS",
+                        "grounded": True,
+                        "reply": "Order #10002 is PROCESSING.",
+                    },
+                )
+            return httpx.Response(
+                200,
+                json={
+                    "ticket_id": "t-urgent-1",
+                    "sentiment": "URGENT_FRUSTRATED",
+                    "routed_to": urgent_routed_to,
+                    "ticket_status": "ESCALATED",
+                    "grounded": False,
+                    "reply": "Escalated to specialist.",
+                },
+            )
+        if url == "https://canary---backend.run.app/api/tickets/t-neutral-1":
+            return httpx.Response(
+                200,
+                json={
+                    "id": "t-neutral-1",
+                    "status": "IN_PROGRESS",
+                    "messages": [
+                        {"sender": "CUSTOMER", "message_text": customer_msg_text},
+                        {"sender": "AI_AGENT", "message_text": "Order #10002 is PROCESSING."},
+                    ],
+                },
+            )
+        if url.endswith("/resolve") and request.method == "POST":
+            return httpx.Response(200, json={"status": "RESOLVED"})
+        return httpx.Response(404, json={"detail": "Not found"})
+
+    return httpx.MockTransport(handler)
+
+
+def test_smoke_canary_e2e_happy_path(monkeypatch):
+    """Gate 5 exits 0 when all 5 canary checks pass."""
+    monkeypatch.setenv("CI_CLOUD_RUN_ID_TOKEN", "test-oidc-token")
+    transport = _build_mock_canary_handler()
+    real_client = httpx.Client
+
+    with patch(
+        "scripts.ci.smoke_test_canary_e2e.httpx.Client",
+        side_effect=lambda **kwargs: real_client(transport=transport, **kwargs),
+    ):
+        rc = smoke_test_canary_e2e.main(
+            [
+                "--backend-url",
+                "https://canary---backend.run.app",
+                "--frontend-url",
+                "https://canary---frontend.run.app",
+            ]
+        )
+        assert rc == 0
+
+
+def test_smoke_canary_e2e_fails_on_unredacted_pii(monkeypatch):
+    """Gate 5 exits 1 (triggering rollback) if customer email is not redacted in DB."""
+    monkeypatch.setenv("CI_CLOUD_RUN_ID_TOKEN", "test-oidc-token")
+    transport = _build_mock_canary_handler(
+        customer_msg_text="My email is canary-ci@example.com, what is the status of order #10002?"
+    )
+    real_client = httpx.Client
+
+    with patch(
+        "scripts.ci.smoke_test_canary_e2e.httpx.Client",
+        side_effect=lambda **kwargs: real_client(transport=transport, **kwargs),
+    ):
+        assert (
+            smoke_test_canary_e2e.run_canary_e2e_smoke(
+                backend_url="https://canary---backend.run.app",
+                frontend_url="https://canary---frontend.run.app",
+            )
+            is False
+        )
+
+
+def test_smoke_canary_e2e_fails_on_iap_guard_bypass(monkeypatch):
+    """Gate 5 exits 1 if frontend /api/tickets does not return HTTP 401 without IAP JWT."""
+    monkeypatch.setenv("CI_CLOUD_RUN_ID_TOKEN", "test-oidc-token")
+    transport = _build_mock_canary_handler(frontend_tickets_status=200)
+    real_client = httpx.Client
+
+    with patch(
+        "scripts.ci.smoke_test_canary_e2e.httpx.Client",
+        side_effect=lambda **kwargs: real_client(transport=transport, **kwargs),
+    ):
+        assert (
+            smoke_test_canary_e2e.run_canary_e2e_smoke(
+                backend_url="https://canary---backend.run.app",
+                frontend_url="https://canary---frontend.run.app",
+            )
+            is False
+        )
+
+
+def test_smoke_canary_e2e_fails_on_urgent_routing_error(monkeypatch):
+    """Gate 5 exits 1 if urgent message does not route to HUMAN_ESCALATION."""
+    monkeypatch.setenv("CI_CLOUD_RUN_ID_TOKEN", "test-oidc-token")
+    transport = _build_mock_canary_handler(urgent_routed_to="FAQ_AGENT")
+    real_client = httpx.Client
+
+    with patch(
+        "scripts.ci.smoke_test_canary_e2e.httpx.Client",
+        side_effect=lambda **kwargs: real_client(transport=transport, **kwargs),
+    ):
+        assert (
+            smoke_test_canary_e2e.run_canary_e2e_smoke(
+                backend_url="https://canary---backend.run.app",
+                frontend_url="https://canary---frontend.run.app",
+            )
+            is False
+        )

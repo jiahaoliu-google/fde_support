@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PROJECT_ID="fde-support-sandbox-dev-jliu"
-REGION="us-central1"
+PROJECT_ID="${PROJECT_ID:-fde-support-sandbox-dev-jliu}"
+REGION="${REGION:-us-central1}"
+ENGINE_ID="${FAQ_ENGINE_ID:-projects/883790454740/locations/us-central1/reasoningEngines/6767283237606653952}"
 PATH="$PATH:/Users/jiahaoliu/.local/bin"
 
 echo "============================================================"
@@ -10,6 +11,17 @@ echo " Deploying FAQ Assistant Agent with Agent Identity "
 echo "============================================================"
 
 cd "$(dirname "$0")"
+
+if [ ! -f deployment_metadata.json ]; then
+  cat > deployment_metadata.json <<EOF
+{
+  "remote_agent_runtime_id": "${ENGINE_ID}",
+  "deployment_target": "agent_runtime",
+  "is_a2a": false,
+  "agent_directory": "."
+}
+EOF
+fi
 
 agents-cli deploy \
     -d agent_runtime \
