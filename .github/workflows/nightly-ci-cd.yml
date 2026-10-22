@@ -19,6 +19,9 @@ on:
   schedule:
     # 12:00 PM EST = 17:00 UTC every day
     - cron: '0 17 * * *'
+  push:
+    tags:
+      - 'ci-run-*'
   workflow_dispatch:
     inputs:
       skip_eval:
@@ -85,7 +88,7 @@ jobs:
   agent-eval-kpi-gate:
     name: "Gate 2: Agent Eval & KPI Gate (100 tickets)"
     needs: unit-and-security-gate
-    if: ${{ github.event_name == 'schedule' || inputs.skip_eval != true }}
+    if: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.skip_eval != true) || (github.event_name == 'push' && !startsWith(github.ref_name, 'ci-run-fast-')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
@@ -174,7 +177,7 @@ jobs:
   build-and-verify-images:
     name: "Gate 3: Build & Boot-Test 4 Container Images"
     needs: [unit-and-security-gate, agent-eval-kpi-gate]
-    if: ${{ !failure() && !cancelled() }}
+    if: ${{ always() && needs.unit-and-security-gate.result == 'success' && (needs.agent-eval-kpi-gate.result == 'success' || needs.agent-eval-kpi-gate.result == 'skipped') }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -277,7 +280,7 @@ jobs:
   deploy-agents:
     name: "Gate 4: Deploy Agents (with --agent-identity) & Probe"
     needs: build-and-verify-images
-    if: ${{ !failure() && !cancelled() && (github.event_name == 'schedule' || inputs.deploy_to_gcp != false) }}
+    if: ${{ needs.build-and-verify-images.result == 'success' && (github.event_name != 'workflow_dispatch' || inputs.deploy_to_gcp != false) }}
     runs-on: ubuntu-latest
     timeout-minutes: 35
     permissions:
@@ -371,7 +374,7 @@ jobs:
   deploy-cloud-run:
     name: "Gate 5: Cloud Run Canary Deploy, E2E Smoke & Cutover"
     needs: [build-and-verify-images, deploy-agents]
-    if: ${{ !failure() && !cancelled() && (github.event_name == 'schedule' || inputs.deploy_to_gcp != false) }}
+    if: ${{ needs.build-and-verify-images.result == 'success' && needs.deploy-agents.result == 'success' && (github.event_name != 'workflow_dispatch' || inputs.deploy_to_gcp != false) }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
