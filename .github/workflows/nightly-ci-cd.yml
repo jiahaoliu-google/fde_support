@@ -280,7 +280,7 @@ jobs:
   deploy-agents:
     name: "Gate 4: Deploy Agents (with --agent-identity) & Probe"
     needs: build-and-verify-images
-    if: ${{ needs.build-and-verify-images.result == 'success' && (github.event_name != 'workflow_dispatch' || inputs.deploy_to_gcp != false) }}
+    if: ${{ always() && !cancelled() && needs.build-and-verify-images.result == 'success' && (github.event_name != 'workflow_dispatch' || inputs.deploy_to_gcp != false) }}
     runs-on: ubuntu-latest
     timeout-minutes: 35
     permissions:
@@ -374,7 +374,7 @@ jobs:
   deploy-cloud-run:
     name: "Gate 5: Cloud Run Canary Deploy, E2E Smoke & Cutover"
     needs: [build-and-verify-images, deploy-agents]
-    if: ${{ needs.build-and-verify-images.result == 'success' && needs.deploy-agents.result == 'success' && (github.event_name != 'workflow_dispatch' || inputs.deploy_to_gcp != false) }}
+    if: ${{ always() && !cancelled() && needs.build-and-verify-images.result == 'success' && needs.deploy-agents.result == 'success' && (github.event_name != 'workflow_dispatch' || inputs.deploy_to_gcp != false) }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
