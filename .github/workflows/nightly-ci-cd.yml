@@ -444,23 +444,32 @@ jobs:
             --tag=canary \
             --quiet
 
-          CANARY_BACKEND_URL="$(gcloud run services describe fde-support-backend \
-            --project="${GCP_PROJECT_ID}" --region="${GCP_REGION}" --format=json \
-            | python -c "import json,sys; d=json.load(sys.stdin); print(next(t['url'] for t in d['status']['traffic'] if t.get('tag')=='canary'))")"
-          CANARY_FRONTEND_URL="$(gcloud run services describe fde-support-frontend \
-            --project="${GCP_PROJECT_ID}" --region="${GCP_REGION}" --format=json \
-            | python -c "import json,sys; d=json.load(sys.stdin); print(next(t['url'] for t in d['status']['traffic'] if t.get('tag')=='canary'))")"
+          BACKEND_JSON="$(gcloud run services describe fde-support-backend \
+            --project="${GCP_PROJECT_ID}" --region="${GCP_REGION}" --format=json)"
+          FRONTEND_JSON="$(gcloud run services describe fde-support-frontend \
+            --project="${GCP_PROJECT_ID}" --region="${GCP_REGION}" --format=json)"
 
+          BACKEND_SERVICE_URL="$(echo "${BACKEND_JSON}" | python -c "import json,sys; print(json.load(sys.stdin)['status']['url'])")"
+          FRONTEND_SERVICE_URL="$(echo "${FRONTEND_JSON}" | python -c "import json,sys; print(json.load(sys.stdin)['status']['url'])")"
+          CANARY_BACKEND_URL="$(echo "${BACKEND_JSON}" | python -c "import json,sys; d=json.load(sys.stdin); print(next(t['url'] for t in d['status']['traffic'] if t.get('tag')=='canary'))")"
+          CANARY_FRONTEND_URL="$(echo "${FRONTEND_JSON}" | python -c "import json,sys; d=json.load(sys.stdin); print(next(t['url'] for t in d['status']['traffic'] if t.get('tag')=='canary'))")"
+
+          echo "backend_service_url=${BACKEND_SERVICE_URL}" >> "$GITHUB_OUTPUT"
+          echo "frontend_service_url=${FRONTEND_SERVICE_URL}" >> "$GITHUB_OUTPUT"
           echo "canary_backend_url=${CANARY_BACKEND_URL}" >> "$GITHUB_OUTPUT"
           echo "canary_frontend_url=${CANARY_FRONTEND_URL}" >> "$GITHUB_OUTPUT"
-          echo "Canary Backend URL:  ${CANARY_BACKEND_URL}"
-          echo "Canary Frontend URL: ${CANARY_FRONTEND_URL}"
+          echo "Backend Service URL:  ${BACKEND_SERVICE_URL}"
+          echo "Frontend Service URL: ${FRONTEND_SERVICE_URL}"
+          echo "Canary Backend URL:   ${CANARY_BACKEND_URL}"
+          echo "Canary Frontend URL:  ${CANARY_FRONTEND_URL}"
 
       - name: Gate 5 — Run Live E2E Smoke Test against zero-traffic Canary URLs
         run: |
           python scripts/ci/smoke_test_canary_e2e.py \
             --backend-url "${{ steps.canary.outputs.canary_backend_url }}" \
-            --frontend-url "${{ steps.canary.outputs.canary_frontend_url }}"
+            --frontend-url "${{ steps.canary.outputs.canary_frontend_url }}" \
+            --backend-audience "${{ steps.canary.outputs.backend_service_url }}" \
+            --frontend-audience "${{ steps.canary.outputs.frontend_service_url }}"
 
       - name: Shift 100% Production Traffic to Verified Canary Revisions
         if: success()

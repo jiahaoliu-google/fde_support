@@ -434,15 +434,15 @@ def test_canary_oidc_audience_strips_traffic_tag_prefix(monkeypatch):
     monkeypatch.delenv("CI_CLOUD_RUN_ID_TOKEN", raising=False)
     assert (
         smoke_test_canary_e2e.canonical_cloud_run_audience(
-            "https://canary---fde-support-frontend-d4ehpwccwq-uc.a.run.app/"
+            "https://canary---frontend.run.app/"
         )
-        == "https://fde-support-frontend-d4ehpwccwq-uc.a.run.app"
+        == "https://frontend.run.app"
     )
     assert (
         smoke_test_canary_e2e.canonical_cloud_run_audience(
-            "https://fde-support-backend-d4ehpwccwq-uc.a.run.app"
+            "https://backend.run.app"
         )
-        == "https://fde-support-backend-d4ehpwccwq-uc.a.run.app"
+        == "https://backend.run.app"
     )
 
     with patch(
@@ -450,12 +450,12 @@ def test_canary_oidc_audience_strips_traffic_tag_prefix(monkeypatch):
         return_value="minted-oidc-jwt",
     ) as mock_fetch:
         tok = smoke_test_canary_e2e.fetch_oidc_id_token(
-            "https://canary---fde-support-backend-d4ehpwccwq-uc.a.run.app"
+            "https://canary---backend.run.app"
         )
         assert tok == "minted-oidc-jwt"
         assert (
             mock_fetch.call_args[0][1]
-            == "https://fde-support-backend-d4ehpwccwq-uc.a.run.app"
+            == "https://backend.run.app"
         )
 
 

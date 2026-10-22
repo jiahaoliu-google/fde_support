@@ -36,12 +36,7 @@ logger = logging.getLogger("ci.smoke_canary")
 
 
 def canonical_cloud_run_audience(url: str) -> str:
-    """Strips any Cloud Run traffic-tag prefix (e.g. 'canary---') from a URL.
-
-    Cloud Run requires the OIDC ID token `aud` claim to match the base service URL
-    (https://SERVICE-HASH-UC.a.run.app) even when invoking a tagged revision URL
-    (https://canary---SERVICE-HASH-UC.a.run.app).
-    """
+    """Strips any Cloud Run traffic-tag prefix (e.g. 'canary---') from a URL."""
     return re.sub(r"^(https?://)[a-zA-Z0-9-]+---", r"\1", url.strip().rstrip("/"))
 
 
@@ -64,44 +59,46 @@ def fetch_oidc_id_token(audience: str) -> str:
     except Exception as exc:
         logger.debug("google.oauth2.id_token failed for %s: %s", target_audience, exc)
 
-    # Workload Identity Federation (GitHub Actions): use ADC access token + IAM generateIdToken
+    # Workload Identity Federation (GitHub Actions): use google.auth.impersonated_credentials
     try:
         import google.auth
+        from google.auth import impersonated_credentials
         import google.auth.transport.requests
 
-        creds, _ = google.auth.default(scopes=["https://www.googleapis.com/auth/cloud-platform"])
+        creds, _ = google.auth.default()
         auth_req = google.auth.transport.requests.Request()
-        creds.refresh(auth_req)
         sa_email = (
-             getattr(creds, "service_account_email", None)
-            or os.environ.get(
-                "CI_SERVICE_ACCOUNT_EMAIL",
-                "fde-support-ci-eval-sa@fde-support-sandbox-dev-jliu.iam.gserviceaccount.com",
+            getattr(creds, "service_account_email", None)
+            or os.environ.get("CI_SERVICE_ACCOUNT_EMAIL", "").strip()
+        )
+        if sa_email:
+            target_creds = impersonated_credentials.Credentials(
+                source_credentials=creds,
+                target_principal=sa_email,
+                target_scopes=[],
             )
-        )
-        iam_url = f"https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/{sa_email}:generateIdToken"
-        resp = httpx.post(
-            iam_url,
-            headers={"Authorization": f"Bearer {creds.token}"},
-            json={"audience": target_audience, "includeEmail": True},
-            timeout=15.0,
-        )
-        if resp.status_code == 200 and resp.json().get("token"):
-            return resp.json()["token"]
+            id_creds = impersonated_credentials.IDTokenCredentials(
+                target_credentials=target_creds,
+                target_audience=target_audience,
+                include_email=True,
+            )
+            id_creds.refresh(auth_req)
+            if id_creds.token:
+                return id_creds.token
     except Exception as exc:
-        logger.debug("IAM generateIdToken fallback failed for %s: %s", target_audience, exc)
+        logger.debug("impersonated_credentials.IDTokenCredentials failed for %s: %s", target_audience, exc)
 
-    try:
-        out = subprocess.check_output(
-            ["gcloud", "auth", "print-identity-token"],
-            stderr=subprocess.DEVNULL,
-            timeout=15,
-        )
-        token = out.decode("utf-8").strip()
-        if token:
-            return token
-    except Exception as exc:
-        logger.error("Failed to mint OIDC ID token via gcloud: %s", exc)
+    for cmd in (
+        ["gcloud", "auth", "print-identity-token", f"--audiences={target_audience}"],
+        ["gcloud", "auth", "print-identity-token"],
+    ):
+        try:
+            out = subprocess.check_output(cmd, stderr=subprocess.DEVNULL, timeout=15)
+            token = out.decode("utf-8").strip()
+            if token:
+                return token
+        except Exception as exc:
+            logger.debug("gcloud print-identity-token (%s) failed: %s", cmd, exc)
 
     raise RuntimeError(f"Unable to acquire OIDC ID token for audience {target_audience}")
 
@@ -111,14 +108,16 @@ def run_canary_e2e_smoke(
     frontend_url: str,
     backend_token: str | None = None,
     frontend_token: str | None = None,
+    backend_audience: str | None = None,
+    frontend_audience: str | None = None,
 ) -> bool:
     """Runs live E2E checks against the canary backend and frontend URLs."""
     backend_url = backend_url.rstrip("/")
     frontend_url = frontend_url.rstrip("/")
 
     try:
-        b_token = backend_token or fetch_oidc_id_token(backend_url)
-        f_token = frontend_token or fetch_oidc_id_token(frontend_url)
+        b_token = backend_token or fetch_oidc_id_token(backend_audience or backend_url)
+        f_token = frontend_token or fetch_oidc_id_token(frontend_audience or frontend_url)
     except Exception as exc:
         logger.error("Authentication setup failed: %s", exc)
         return False
@@ -249,11 +248,18 @@ def run_canary_e2e_smoke(
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run E2E smoke tests against Cloud Run canary URLs.")
-    parser.add_argument("--backend-url", required=True, help="Canary backend URL (https://canary---...)")
-    parser.add_argument("--frontend-url", required=True, help="Canary frontend URL (https://canary---...)")
+    parser.add_argument("--backend-url", required=True, help="Canary backend URL")
+    parser.add_argument("--frontend-url", required=True, help="Canary frontend URL")
+    parser.add_argument("--backend-audience", default=None, help="Canonical Cloud Run backend service URL for OIDC audience")
+    parser.add_argument("--frontend-audience", default=None, help="Canonical Cloud Run frontend service URL for OIDC audience")
     args = parser.parse_args(argv)
 
-    ok = run_canary_e2e_smoke(backend_url=args.backend_url, frontend_url=args.frontend_url)
+    ok = run_canary_e2e_smoke(
+        backend_url=args.backend_url,
+        frontend_url=args.frontend_url,
+        backend_audience=args.backend_audience,
+        frontend_audience=args.frontend_audience,
+    )
     return 0 if ok else 1
 
 
