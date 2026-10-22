@@ -314,13 +314,17 @@ jobs:
           uv tool install google-agents-cli==1.3.0
           uv tool dir --bin >> "$GITHUB_PATH"
 
-      - name: Record previous :latest-deployed agent digests for rollback
+      - name: Record previous deployed agent digests for rollback
         id: prev
         run: |
-          PREV_FAQ="$(gcloud artifacts docker images describe "${AR_REPO}/faq-assistant:latest-deployed" \
-            --format='value(image_summary.fully_qualified_digest)' 2>/dev/null || true)"
-          PREV_SENTIMENT="$(gcloud artifacts docker images describe "${AR_REPO}/sentiment-router:latest-deployed" \
-            --format='value(image_summary.fully_qualified_digest)' 2>/dev/null || true)"
+          PREV_FAQ_VER="$(gcloud artifacts docker images list "${AR_REPO}/faq-assistant" \
+            --include-tags --filter="tags:deployed-" --sort-by="~UPDATE_TIME" --limit=1 \
+            --format='value(version)' 2>/dev/null || true)"
+          PREV_SENTIMENT_VER="$(gcloud artifacts docker images list "${AR_REPO}/sentiment-router" \
+            --include-tags --filter="tags:deployed-" --sort-by="~UPDATE_TIME" --limit=1 \
+            --format='value(version)' 2>/dev/null || true)"
+          PREV_FAQ="${PREV_FAQ_VER:+${AR_REPO}/faq-assistant@${PREV_FAQ_VER}}"
+          PREV_SENTIMENT="${PREV_SENTIMENT_VER:+${AR_REPO}/sentiment-router@${PREV_SENTIMENT_VER}}"
           echo "prev_faq_digest=${PREV_FAQ}" >> "$GITHUB_OUTPUT"
           echo "prev_sentiment_digest=${PREV_SENTIMENT}" >> "$GITHUB_OUTPUT"
           echo "Previous FAQ digest: ${PREV_FAQ:-none}"
@@ -343,16 +347,17 @@ jobs:
       - name: Gate 4 — Live :streamQuery smoke test against deployed Agent Runtime engines
         run: python scripts/ci/smoke_test_deployed_agents.py
 
-      - name: Tag verified agent images as :latest-deployed
+      - name: Tag verified agent images with unique workflow deployment tag
         if: success()
         env:
           FAQ_DIGEST: ${{ needs.build-and-verify-images.outputs.faq_digest }}
           SENTIMENT_DIGEST: ${{ needs.build-and-verify-images.outputs.sentiment_digest }}
+          DEPLOYED_TAG: "deployed-${{ github.run_number }}-${{ github.run_id }}-${{ github.run_attempt }}"
         run: |
-          gcloud artifacts docker tags add "${FAQ_DIGEST}" "${AR_REPO}/faq-assistant:latest-deployed" --quiet
-          gcloud artifacts docker tags add "${SENTIMENT_DIGEST}" "${AR_REPO}/sentiment-router:latest-deployed" --quiet
+          gcloud artifacts docker tags add "${FAQ_DIGEST}" "${AR_REPO}/faq-assistant:${DEPLOYED_TAG}" --quiet
+          gcloud artifacts docker tags add "${SENTIMENT_DIGEST}" "${AR_REPO}/sentiment-router:${DEPLOYED_TAG}" --quiet
 
-      - name: Auto-Rollback Agents to :latest-deployed on failure
+      - name: Auto-Rollback Agents to previous deployed digests on failure
         if: failure()
         env:
           PREV_FAQ: ${{ steps.prev.outputs.prev_faq_digest }}
@@ -462,6 +467,7 @@ jobs:
         env:
           BACKEND_DIGEST: ${{ needs.build-and-verify-images.outputs.backend_digest }}
           FRONTEND_DIGEST: ${{ needs.build-and-verify-images.outputs.frontend_digest }}
+          DEPLOYED_TAG: "deployed-${{ github.run_number }}-${{ github.run_id }}-${{ github.run_attempt }}"
         run: |
           gcloud run services update-traffic fde-support-backend \
             --project="${GCP_PROJECT_ID}" \
@@ -475,9 +481,9 @@ jobs:
             --to-latest \
             --quiet
 
-          gcloud artifacts docker tags add "${BACKEND_DIGEST}" "${AR_REPO}/backend:latest-deployed" --quiet
-          gcloud artifacts docker tags add "${FRONTEND_DIGEST}" "${AR_REPO}/frontend:latest-deployed" --quiet
-          echo "✅ 100% production traffic shifted to new Backend and Frontend revisions!"
+          gcloud artifacts docker tags add "${BACKEND_DIGEST}" "${AR_REPO}/backend:${DEPLOYED_TAG}" --quiet
+          gcloud artifacts docker tags add "${FRONTEND_DIGEST}" "${AR_REPO}/frontend:${DEPLOYED_TAG}" --quiet
+          echo "✅ 100% production traffic shifted to new Backend and Frontend revisions (tagged ${DEPLOYED_TAG})!"
 
       - name: Auto-Rollback Cloud Run Traffic to Previous Revisions on Failure
         if: failure()

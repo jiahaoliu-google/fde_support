@@ -25,6 +25,7 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+import re
 import subprocess
 import sys
 
@@ -34,22 +35,34 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 logger = logging.getLogger("ci.smoke_canary")
 
 
+def canonical_cloud_run_audience(url: str) -> str:
+    """Strips any Cloud Run traffic-tag prefix (e.g. 'canary---') from a URL.
+
+    Cloud Run requires the OIDC ID token `aud` claim to match the base service URL
+    (https://SERVICE-HASH-UC.a.run.app) even when invoking a tagged revision URL
+    (https://canary---SERVICE-HASH-UC.a.run.app).
+    """
+    return re.sub(r"^(https?://)[a-zA-Z0-9-]+---", r"\1", url.strip().rstrip("/"))
+
+
 def fetch_oidc_id_token(audience: str) -> str:
     """Fetches a Google-signed OIDC ID token for invoking a Cloud Run service."""
     env_token = os.environ.get("CI_CLOUD_RUN_ID_TOKEN", "").strip()
     if env_token:
         return env_token
 
+    target_audience = canonical_cloud_run_audience(audience)
+
     try:
         import google.auth.transport.requests
         import google.oauth2.id_token
 
         auth_req = google.auth.transport.requests.Request()
-        token = google.oauth2.id_token.fetch_id_token(auth_req, audience)
+        token = google.oauth2.id_token.fetch_id_token(auth_req, target_audience)
         if token:
             return token
     except Exception as exc:
-        logger.debug("google.oauth2.id_token failed for %s: %s", audience, exc)
+        logger.debug("google.oauth2.id_token failed for %s: %s", target_audience, exc)
 
     # Workload Identity Federation (GitHub Actions): use ADC access token + IAM generateIdToken
     try:
@@ -70,13 +83,13 @@ def fetch_oidc_id_token(audience: str) -> str:
         resp = httpx.post(
             iam_url,
             headers={"Authorization": f"Bearer {creds.token}"},
-            json={"audience": audience, "includeEmail": True},
+            json={"audience": target_audience, "includeEmail": True},
             timeout=15.0,
         )
         if resp.status_code == 200 and resp.json().get("token"):
             return resp.json()["token"]
     except Exception as exc:
-        logger.debug("IAM generateIdToken fallback failed for %s: %s", audience, exc)
+        logger.debug("IAM generateIdToken fallback failed for %s: %s", target_audience, exc)
 
     try:
         out = subprocess.check_output(
@@ -90,7 +103,7 @@ def fetch_oidc_id_token(audience: str) -> str:
     except Exception as exc:
         logger.error("Failed to mint OIDC ID token via gcloud: %s", exc)
 
-    raise RuntimeError(f"Unable to acquire OIDC ID token for audience {audience}")
+    raise RuntimeError(f"Unable to acquire OIDC ID token for audience {target_audience}")
 
 
 def run_canary_e2e_smoke(
