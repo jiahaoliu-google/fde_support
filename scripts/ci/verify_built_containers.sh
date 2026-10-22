@@ -87,6 +87,7 @@ echo "============================================================"
 docker run -d --name ci-boot-faq \
   -p 127.0.0.1:18081:8080 \
   -e PORT=8080 \
+  -e GOOGLE_CLOUD_PROJECT="fde-support-sandbox-dev-jliu" \
   -e OTEL_TRACES_EXPORTER="none" \
   -e GOOGLE_CLOUD_AGENT_ENGINE_ENABLE_TELEMETRY="false" \
   -e REQUIRE_DURABLE_SESSIONS="false" \
@@ -95,7 +96,7 @@ docker run -d --name ci-boot-faq \
 wait_for_http_200 "ci-boot-faq" "http://127.0.0.1:18081/health" 25
 FAQ_APPS="$(curl -fsS "http://127.0.0.1:18081/list-apps?detailed=true")"
 echo "FAQ /list-apps?detailed=true -> ${FAQ_APPS}"
-echo "$FAQ_APPS" | grep -q '"faq_assistant"'
+echo "$FAQ_APPS" | grep -Eq '"faq_assistant(_agent)?"'
 curl -fsS -X POST "http://127.0.0.1:18081/api/reasoning_engine" \
   -H "Content-Type: application/json" \
   -d '{"class_method": "list_sessions", "input": {"user_id": "ci_boot_probe"}}' | grep -q '"sessions"'
@@ -106,6 +107,7 @@ echo "============================================================"
 docker run -d --name ci-boot-sentiment \
   -p 127.0.0.1:18082:8080 \
   -e PORT=8080 \
+  -e GOOGLE_CLOUD_PROJECT="fde-support-sandbox-dev-jliu" \
   -e OTEL_TRACES_EXPORTER="none" \
   -e GOOGLE_CLOUD_AGENT_ENGINE_ENABLE_TELEMETRY="false" \
   "$SENTIMENT_IMAGE"
@@ -113,7 +115,7 @@ docker run -d --name ci-boot-sentiment \
 wait_for_http_200 "ci-boot-sentiment" "http://127.0.0.1:18082/health" 25
 SENTIMENT_APPS="$(curl -fsS "http://127.0.0.1:18082/list-apps?detailed=true")"
 echo "Sentiment /list-apps?detailed=true -> ${SENTIMENT_APPS}"
-echo "$SENTIMENT_APPS" | grep -q '"sentiment_router"'
+echo "$SENTIMENT_APPS" | grep -Eq '"sentiment_router(_agent)?"'
 curl -fsS -X POST "http://127.0.0.1:18082/api/reasoning_engine" \
   -H "Content-Type: application/json" \
   -d '{"class_method": "list_sessions", "input": {"user_id": "ci_boot_probe"}}' | grep -q '"sessions"'

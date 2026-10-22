@@ -28,6 +28,12 @@ def _cloud_telemetry_enabled() -> bool:
         "no",
     }:
         return False
+    try:
+        import google.auth
+
+        google.auth.default()
+    except Exception:
+        return False
     return True
 
 
