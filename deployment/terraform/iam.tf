@@ -9,11 +9,9 @@
 
 locals {
   sa_ids = {
-    backend   = { id = "fde-support-backend-sa", name = "FDE Support Backend (Cloud Run runtime)" }
-    frontend  = { id = "fde-support-frontend-sa", name = "FDE Support Frontend (Cloud Run runtime)" }
-    ci_eval   = { id = "fde-support-ci-eval-sa", name = "FDE Support CI eval (GitHub Actions via WIF)" }
-    faq_agent = { id = "fde-support-faq-agent-sa", name = "FDE Support FAQ agent (Agent Engine)" }
-    sentiment = { id = "fde-support-sentiment-agent-sa", name = "FDE Support sentiment agent (Agent Engine)" }
+    backend  = { id = "fde-support-backend-sa", name = "FDE Support Backend (Cloud Run runtime)" }
+    frontend = { id = "fde-support-frontend-sa", name = "FDE Support Frontend (Cloud Run runtime)" }
+    ci_eval  = { id = "fde-support-ci-eval-sa", name = "FDE Support CI eval (GitHub Actions via WIF)" }
   }
 
   project_number  = data.google_project.current.number

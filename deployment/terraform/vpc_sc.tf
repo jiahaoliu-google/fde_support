@@ -38,8 +38,6 @@ locals {
     google_service_account.sa["backend"].member,
     google_service_account.sa["frontend"].member,
     google_service_account.sa["ci_eval"].member,
-    google_service_account.sa["faq_agent"].member,
-    google_service_account.sa["sentiment"].member,
     "serviceAccount:service-${local.project_number}@gcp-sa-aiplatform-re.iam.gserviceaccount.com",
   ]
 

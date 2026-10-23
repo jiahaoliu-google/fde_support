@@ -61,7 +61,7 @@ else:
 SERVING_CONFIG = f"{DATASTORE_PATH}/servingConfigs/default_search"
 
 MAX_QUERY_LENGTH = 500
-DEFAULT_TOP_K = 5
+DEFAULT_TOP_K = 8
 MAX_TOP_K = 10
 MAX_FIELD_CHARS = 300
 
@@ -227,11 +227,11 @@ def search_support_records(query: str, top_k: int = DEFAULT_TOP_K) -> dict:
     specific order; use get_order_status for that.
 
     Args:
-        query: A specific, self-contained search query that combines the subject
-            anchor and specific intent from the conversation history, e.g.
-            "AirPods disconnecting from iPhone after iOS update" or
-            "computer RAM return policy restocking fee".
-        top_k: Number of records to return (1-10). Defaults to 5.
+        query: A specific, self-contained search query that combines the brand/subject
+            anchor with the customer's exact nouns, numbers, times, locations, codes,
+            and symptom phrases verbatim from the conversation history. Do not abstract
+            or generalize the customer's specific words into a broad topic query.
+        top_k: Number of records to return (1-10). Defaults to 8.
 
     Returns:
         A dict with:
@@ -253,6 +253,9 @@ def search_support_records(query: str, top_k: int = DEFAULT_TOP_K) -> dict:
         serving_config=SERVING_CONFIG,
         query=clean_query,
         page_size=k,
+        query_expansion_spec=discoveryengine.SearchRequest.QueryExpansionSpec(
+            condition=discoveryengine.SearchRequest.QueryExpansionSpec.Condition.AUTO
+        ),
     )
 
     # Error responses deliberately carry no exception text, HTTP bodies, or credential

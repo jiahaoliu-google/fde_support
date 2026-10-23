@@ -24,6 +24,7 @@ Thumbs.db
 
 # Archive & Temp
 archive/
+docs/
 
 # Local tool state, logs & backups (never commit)
 *.log

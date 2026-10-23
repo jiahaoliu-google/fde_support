@@ -28,7 +28,7 @@ echo "== Building ${IMAGE}:${TAG} via Cloud Build"
 gcloud builds submit . \
     --project="${PROJECT_ID}" \
     --region="${REGION}" \
-    --config=cloudbuild-backend.yaml \
+    --config=backend/cloudbuild.yaml \
     --substitutions="_TAG=${TAG}" \
     --gcs-source-staging-dir="gs://run-sources-${PROJECT_ID}-${REGION}/source" \
     --gcs-log-dir="gs://run-sources-${PROJECT_ID}-${REGION}/logs"

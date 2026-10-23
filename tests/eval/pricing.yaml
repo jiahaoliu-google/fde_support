@@ -19,6 +19,14 @@ models:
     input: 0.30
     output: 2.50
     cached_input: 0.03
+  gemini-3.5-flash-lite:     # Model comparison candidate
+    input: 0.30
+    output: 2.50
+    cached_input: 0.03
+  gemini-3.8-flash:          # Model comparison candidate
+    input: 0.75
+    output: 3.75
+    cached_input: 0.075
   gemini-3.5-flash:          # LLM judge named in the TDD (nightly semantic QA)
     input: null              # TODO: rate not verified; fill in from the pricing page
     output: null
